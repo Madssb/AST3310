@@ -9,8 +9,9 @@ def evaluate(expected, computed, tolerance=1e-5):
     verifies if known computed quantities match their expected values,
     used in sanity checks.
     """
-    error_message = f"expected {expected}, computed {computed}."
-    assert np.abs(expected - computed) < tolerance, error_message
+    error = np.abs(expected - computed)
+    error_message = f"expected {expected:.4g}, computed {computed:.4g}, error: {error:.4g} "
+    assert error < tolerance, error_message
 
 
 def convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro):
@@ -19,8 +20,8 @@ def convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro):
     to [reactions*m^3/s]
     """
     avogadros_number = 6.0221e23  # 1/mol
-    reaction_rate_cm = reaction_rate_cm_avogadro / avogadros_number
-    reaction_rate_m = reaction_rate_cm / 1e6
+    reaction_rate_cm = reaction_rate_cm_avogadro / avogadros_number #reactions*cm^3/s
+    reaction_rate_m = reaction_rate_cm / 1e6 #reactions*m^3/s
     return reaction_rate_m
 
 
@@ -44,7 +45,7 @@ class EnergyProduction:
         "helium_4": 0.29,
         "lithium_7": 1e-7,
         "beryllium_7": 1e-7,
-        "nitrogen_14": 1e-11,
+        "nitrogen_14": 1e-11
     }
 
     def __init__(self, mass_density=1.62e5, temperature=1.57e7):
@@ -67,7 +68,7 @@ class EnergyProduction:
 
     def number_density_electron(self):
         """
-        Computes the total number density of electrons, assuming each element as fully ionized.
+        Computes the total number density of electrons, assuming each element is fully ionized.
         """ 
         return np.sum([
             self.number_density("hydrogen_1"),
@@ -80,40 +81,49 @@ class EnergyProduction:
 
     def scale_factor_helium_3(self):
         """
-        scales consumption of helium 3 according to the rate of production.
-        if and only if consumption exceeds production, returns 1 otherwise
+        computes the scaling factor which normalizes the consumption of
+        helium 3, such that it does not exceed the production of helium 3,
+        and returns 1 if the consumption does not exceed production.
         """
-        production_helium_3 = self.reaction_rate_per_unit_mass_pp()
-        consumption_helium_3 = (
-            2 * self.reaction_rate_per_unit_mass_33()
-            + self.reaction_rate_per_unit_mass_34()
-        )
+        production_helium_3 = self.reaction_rate_pp()
+        consumption_helium_3 = np.sum([
+            2 * self.reaction_rate_33(apply_scale_factor=False),
+            self.reaction_rate_34(apply_scale_factor=False)
+        ])
         if production_helium_3 < consumption_helium_3:
             return production_helium_3 / consumption_helium_3
         return 1
 
-    def scale_factor_beryllium_7(self):
+    def scale_factor_beryllium_7(self,):
         """
         scales consumption of beryllium 7 according to the rate of production
         if and only if consumption exceeds production, returns 1 otherwise.
         """
-        production_beryllium_7 = self.reaction_rate_per_unit_mass_34()
-        consumption_beryllium_7 = (
-            self.reaction_rate_per_unit_mass_e7()
-            + self.reaction_rate_per_unit_mass_17()
-        )
+        production_beryllium_7 = self.reaction_rate_34()
+        consumption_beryllium_7 = np.sum([
+            self.reaction_rate_e7(apply_scale_factor=False),
+            self.reaction_rate_17(apply_scale_factor=False)
+        ])
         if production_beryllium_7 < consumption_beryllium_7:
             return production_beryllium_7 / consumption_beryllium_7
+        return 1
+    
+    def scale_factor_lithium_7(self):
+        """
+        scales consumption of lithium 7 according to the rate of production,
+        if and only if consumption exceeds production, returns 1 otherwise.
+        """
+        production_lithium_7 = self.reaction_rate_e7()
+        consumption_lithium_7 = self.reaction_rate_17_()
+        if production_lithium_7 < consumption_lithium_7:
+            return production_lithium_7/consumption_lithium_7
         return 1
 
     def reaction_rate_pp(self):
         """
         Computes the reaction rate [reactions*m^3/s] for the
-        the fusion of hydrogen 1 nuclei, forming deuterium, aswell as
-        the fusion of deuterium and hydrogen 3, forming helium 3.
-        They are steps one and two within the PP 0 branch respectively,
-        and are combined due to the near instantaneous fusion of deuterium
-        and hydrogen 1.
+        the fusion of hydrogen 1 nuclei.
+        this is the first step of the PP 0 branch.
         """
         reaction_rate_cm_avogadro = (
             4.01e-15
@@ -129,10 +139,14 @@ class EnergyProduction:
         reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
         return reaction_rate_m
 
-    def reaction_rate_33(self):
+    def reaction_rate_33(self,apply_scale_factor=True):
         """
         Computes the reaction rate [reactions*m^3/s] for the fusion of
         helium 3 nuclei, forming helium 4 and hydrogen 1.
+        Allows for computing the reaction rate unrestricted by the rate at
+        which helium 3 is produced, for the sake of computing the factor which
+        is required for adjusting the consumption of helium 3 to the rate at
+        which it is produced. 
         This is the first and only step within the PP1 branch.
         """
         reaction_rate_cm_avogadro = (
@@ -149,12 +163,18 @@ class EnergyProduction:
             )
         )
         reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        if apply_scale_factor:
+            reaction_rate_m *= self.scale_factor_helium_3()
         return reaction_rate_m
 
-    def reaction_rate_34(self):
+    def reaction_rate_34(self,apply_scale_factor=True):
         """
         Computes the reaction rate [reactions*m^3/s] for the fusion of
         Helium 3 and Helium 4, forming beryllium 7.
+        Allows for computing the reaction rate unrestricted by the rate at
+        which helium 3 is produced, for the sake of computing the factor which
+        is required for adjusting the consumption of helium 3 to the rate at
+        which it is produced. 
         This is the first step within the PP2 and PP3 branches.
         """
         temperature9_ = self.temperature9 / (1 + 4.95e-2 * self.temperature9)
@@ -165,12 +185,19 @@ class EnergyProduction:
             * np.exp(-12.826 * temperature9_ ** (-1 / 3))
         )
         reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        if apply_scale_factor:
+            reaction_rate_m *= self.scale_factor_helium_3()
         return reaction_rate_m
 
-    def reaction_rate_e7(self):
+    def reaction_rate_e7(self,apply_scale_factor=True):
         """
-        Computes the reaction rate [reactions/s/m^3] for the electro capture
+        Computes the reaction rate [reactions/s/m^3] for the electron capture
         by beryllium 7, forming lithium 7.
+        Allows for computing the reaction rate unrestricted by the rate at
+        which beryllim 7 is produced, for the sake of computing the factor which
+        is required for adjusting the consumption of beryllim 7 to the rate at
+        which it is produced. 
+        for temperatures below 1e6 Kelvin, it has an upper limit of x.
         This is the the second step within the PP2 branch.
         """
         reaction_rate_cm_avogadro = (
@@ -185,13 +212,16 @@ class EnergyProduction:
                 * np.exp(2.515e-3 * self.temperature9 ** (-1))
             )
         )
-        upper_limit = 1.57e-7/self.number_density_electron()
-        if self.temperature < 10e6 and reaction_rate_cm_avogadro > upper_limit:
-            return convert_cm_to_m_reaction_rate(upper_limit)
-        reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        upper_limit_cm_avogadro = 1.57e-7/self.number_density_electron()
+        if self.temperature < 1e6:
+            reaction_rate_m = convert_cm_to_m_reaction_rate(upper_limit_cm_avogadro)
+        else:
+            reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        if apply_scale_factor:
+            reaction_rate_m *= self.scale_factor_beryllium_7()
         return reaction_rate_m
 
-    def reaction_rate_17_(self):
+    def reaction_rate_17_(self,apply_scale_factor=True):
         """
         Computes the reaction rate for [reactions*m^3/s/] the fusion of
         Lithium and hydrogen, forming helium 4.
@@ -211,20 +241,28 @@ class EnergyProduction:
             * np.exp(-30.442 * self.temperature9 ** (-1))
         )
         reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        if apply_scale_factor:
+            reaction_rate_m *= self.scale_factor_lithium_7()
         return reaction_rate_m
 
-    def reaction_rate_17(self):
+    def reaction_rate_17(self,apply_scale_factor=True):
         """
         Computes the reaction rate [reactions*m^3/s] for the fusion of
         Beryllium 7 and hydrogen, forming boron 8.
+        Allows for computing the reaction rate unrestricted by the rate at
+        which beryllim 7 is produced, for the sake of computing the factor which
+        is required for adjusting the consumption of beryllim 7 to the rate at
+        which it is produced. 
         This is the second step of the PP3 branch.
         """
         reaction_rate_cm_avogadro = 3.11e5 * self.temperature9 ** (-2 / 3) * np.exp(
-            -10.262 * self.temperature9
+            -10.262 * self.temperature9**(-1/3)
         ) + 2.53e3 * self.temperature9 ** (-3 / 2) * np.exp(
             -7.306 * self.temperature9 ** (-1)
         )
         reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        if apply_scale_factor:
+            reaction_rate_m *= self.scale_factor_beryllium_7()
         return reaction_rate_m
 
     def reaction_rate_p14(self):
@@ -259,11 +297,8 @@ class EnergyProduction:
     def reaction_rate_per_unit_mass_pp(self):
         """
         Computes the reaction rate per unit mass [reactions/s/kg] for the
-        fusion of hydrogen 1 nuclei, forming deuterium, aswell as
-        the fusion of deuterium and hydrogen 3, forming helium 3.
-        They are steps one and two within the PP 0 branch respectively,
-        and are combined due to the near instantaneous fusion of deuterium
-        and hydrogen 1.
+        fusion of hydrogen 1 nuclei, forming deuterium.
+        this is the first step of the PP chain.
         """
         return (
             self.reaction_rate_pp()
@@ -279,7 +314,7 @@ class EnergyProduction:
         This is the first and only step within the pp 1 branch.
         """
         return (
-            self.reaction_rate_33()
+            self.reaction_rate_33(apply_scale_factor=False)
             * self.number_density("helium_3") ** 2
             / self.mass_density
             / 2
@@ -372,17 +407,16 @@ class EnergyProduction:
         """
         Computes the energy production rate per unit volume [J/m^3/s] for the
         fusion of helium 3 nuclei, forming helium 4 and hydrogen 1,
-        adjusting the consumption of helium 3 according to rate at
+        adjusting the consumption of helium 3 according to the rate at
         which it is produced.
         This is the first and only step within the PP 1 branch.
 
         """
-        released_energy_33 = 12.869 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
+        released_energy_33 = 12.860 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
         return (
             self.reaction_rate_per_unit_mass_33()
             * released_energy_33
             * self.mass_density
-            * self.scale_factor_helium_3()
         )
 
     def energy_production_rate_34(self):
@@ -398,7 +432,6 @@ class EnergyProduction:
             self.reaction_rate_per_unit_mass_34()
             * released_energy_34
             * self.mass_density
-            * self.scale_factor_helium_3()
         )
 
     def energy_production_rate_e7(self):
@@ -412,7 +445,6 @@ class EnergyProduction:
             self.reaction_rate_per_unit_mass_e7()
             * released_energy_e7
             * self.mass_density
-            * self.scale_factor_beryllium_7()
         )
 
     def energy_production_rate_17_(self):
@@ -446,7 +478,6 @@ class EnergyProduction:
             self.reaction_rate_per_unit_mass_17()
             * released_energy
             * self.mass_density
-            * self.scale_factor_beryllium_7()
         )
 
     def energy_production_rate_p14(self):
@@ -497,31 +528,29 @@ class EnergyProduction:
         ), f"expected rho =  {1.62e5}kg/m^3, actual rho =  {self.mass_density}kg/m^3."
 
         evaluate(4.04e2, self.energy_production_rate_pp(), tolerance=1)
-        evaluate(8.68e-9, self.energy_production_rate_33(),tolerance=1e-10)
-        evaluate(4.86e-5, self.energy_production_rate_34(),tolerance=1e-6)
-        evaluate(1.49e-6, self.energy_production_rate_e7(),tolerance=1e-7)
-        evaluate(5.29e-4, self.energy_production_rate_17_())
-        evaluate(1.63e-6, self.energy_production_rate_17())
-        evaluate(9.18e-8, self.energy_production_rate_p14())
+        evaluate(8.68e-9, self.energy_production_rate_33(),tolerance=1e-22)
+        evaluate(4.86e-5, self.energy_production_rate_34(),tolerance=1e-7)
+        evaluate(1.49e-6, self.energy_production_rate_e7(),tolerance=1e-8)
+        evaluate(5.29e-4, self.energy_production_rate_17_(),tolerance=1e-6)
+        evaluate(1.63e-6, self.energy_production_rate_17(),tolerance=1e-8)
+        evaluate(9.18e-8, self.energy_production_rate_p14(),tolerance=1e-10)
 
     def debug(self):
         """
         used for debugging, mainly prints values.
         """
-        """
-        print("DEBUG TIME!")
-        print(f"temperature9: {self.temperature9}*10^9 K")
-        print(f"reaction rate for the fusion of lithium 7 and hydrogen 1: {self.reaction_rate_17_()}")
-        print(f"reation rate per unit mass for the fusion of lithium y and hydrogen 1: {self.reaction_rate_per_unit_mass_17_()}")
-        print(f"number density of lithium 7: {self.number_density('lithium_7')}")
-        print(f"mass density: {self.mass_density}")
-        """
-        print(f"energy production rate e7 {self.energy_production_rate_e7()}")
-        print(f"reaction rate per unit mass e7 {self.reaction_rate_per_unit_mass_e7()}")
-        print(f"reaction rate e7 {self.reaction_rate_e7()}")
-        print(f"electron density: {self.number_density_electron()}")
+        expected_energy_production_rate_33 = 8.68e-9
+        number_density_helium_3 = self.number_density("helium_3")
+        released_energy_33 = 12.860 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
+        expected_reaction_rate_per_unit_mass_33 = expected_energy_production_rate_33/released_energy_33/self.mass_density
+        expected_reaction_rate_33 = expected_reaction_rate_per_unit_mass_33*2*self.mass_density/number_density_helium_3/number_density_helium_3
+        print("various values computed for computing the energy production rate for helium 3 fusion:")
+        print(f"energy production rates, expected: {expected_energy_production_rate_33:.4g}, computed: {self.energy_production_rate_33():.4g}")
+        print(f"reaction rates per unit mass, expected: {expected_reaction_rate_per_unit_mass_33:.4g}, computed: {self.reaction_rate_per_unit_mass_33()}")
+        print(f"reaction rates, expected: {expected_reaction_rate_33}, computed: {self.reaction_rate_33()}")
+
 instance = EnergyProduction()
-instance.debug()
+#instance.debug()
 instance.sanity_check()
 # mass for each atomic species are provided in kg
 
