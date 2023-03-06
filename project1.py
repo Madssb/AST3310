@@ -121,7 +121,7 @@ class EnergyProduction:
         if and only if consumption exceeds production, returns 1 otherwise.
         """
         production_lithium_7 = self.reaction_rate_per_unit_mass_e7(
-            apply_scale_factor=False
+            apply_scale_factor=True
         )
         consumption_lithium_7 = self.reaction_rate_per_unit_mass_17_(
             apply_scale_factor=False
@@ -234,8 +234,7 @@ class EnergyProduction:
             * np.exp(-30.442 * self.temperature9 ** (-1))
         )
         reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
-        #return reaction_rate_m
-        return 2
+        return reaction_rate_m
 
     def reaction_rate_17(self):
         """
@@ -255,8 +254,7 @@ class EnergyProduction:
         """
         Computes the reaction rate [reactions*m^3/s] for the fusion of
         nitrogen 14 and hydrogen 1, forming oxygen 15.
-        This is thethe fourth and only non-negligible reaction rate within the
-        CNO-cycle.
+        This is thethe fourth step of the CNO-cycle.
         """
         reaction_rate_cm_avogadro = (
             4.90e7
@@ -488,8 +486,6 @@ class EnergyProduction:
         fusion of nitrogen 14 and hydrogen 1, as other fusions in the CNO-
         cycle are demmed near instantaneous.
         """
-        released_energy_8 = 8.367 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
-        released_energy_8_ = 2.995 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
         released_energy_p12 = 1.944 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
         released_energy_13 = 1.513 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
         released_energy_p13 = 7.551 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
@@ -498,8 +494,6 @@ class EnergyProduction:
         released_energy_p15 = 4.966 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
         released_energy_cno = sum(
             [
-                released_energy_8,
-                released_energy_8_,
                 released_energy_p12,
                 released_energy_13,
                 released_energy_p13,
@@ -519,8 +513,15 @@ class EnergyProduction:
 
     def sanity_check(self):
         """
-        Verifies the that the various methods work as intended, and calculate the correct values.
+        Verifies the computation of the various energy production rates by
+        comparing the outputs with their respective known values at a mass
+        density of the solar core, and temperatures of that of the solar core,
+        aswell as 10^8 Kelvin.
         """
+        temp = self.temperature9
+        temp2 = self.mass_density
+        self.temperature9 = 1.57e7 * 1e-9
+        self.mass_density = 1.62e5
         assert (
             self.temperature == 1.57e7
         ), f"expected T = {1.57e7}K, actual T = {self.temperature}K."
@@ -535,29 +536,40 @@ class EnergyProduction:
         evaluate(5.29e-4, self.energy_production_rate_17_(), tolerance=1e-6)
         evaluate(1.63e-6, self.energy_production_rate_17(), tolerance=1e-8)
         evaluate(9.18e-8, self.energy_production_rate_p14(), tolerance=1e-10)
+        self.temperature9 = 1e8 * 1e-9
+        evaluate(7.34e4, self.energy_production_rate_pp(), 1e2)
+        evaluate(1.09, self.energy_production_rate_33(), 1e-2)
+        evaluate(1.74e4, self.energy_production_rate_34(), 1e2)
+        evaluate(1.22e-3, self.energy_production_rate_e7(), 1e-1)
+        evaluate(4.35e-1, self.energy_production_rate_17_(), 1e-3)
+        evaluate(1.26e5, self.energy_production_rate_17(), 1e3)
+        evaluate(3.45e4, self.energy_production_rate_p14(), 1e2)
+        self.temperature9 = temp
+        self.mass_density = temp2
 
     def debug(self):
         """
         used for debugging, mainly prints values.
         """
-        epsilon = 5.29e-4
-        Q = 17.346 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
+        epsilon = 9.18e-8
+        Q = (
+            1.944 + 1.513 + 7.551 + 7.297 + 1.757 + 4.966
+        ) * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
         expected_reaction_rate_per_unit_mass = epsilon / Q / self.mass_density
         expected_reaction_rate = (
             expected_reaction_rate_per_unit_mass
             * self.mass_density
             / self.number_density("hydrogen_1")
-            / self.number_density("lithium_7")
+            / self.number_density("nitrogen_14")
         )
         print(
             f"""
-            Reaction rate per unit mass. Computed: {self.reaction_rate_per_unit_mass_17_():.4g},  expected: {expected_reaction_rate_per_unit_mass:.4g}
-            reaction rate. Computed: {self.reaction_rate_17_():.4g}, expected: {expected_reaction_rate:.4g}
-            production rate. Computed: {self.energy_production_rate_17_():.4g}, expected: {epsilon:.4g}
+            Reaction rate per unit mass. Computed: {self.reaction_rate_per_unit_mass_p14():.4g},  expected: {expected_reaction_rate_per_unit_mass:.4g}
+            reaction rate. Computed: {self.reaction_rate_p14():.4g}, expected: {expected_reaction_rate:.4g}
+            production rate. Computed: {self.energy_production_rate_p14():.4g}, expected: {epsilon:.4g}
             mass density: {self.mass_density:.4g}
             number density hydrogen 1: {self.number_density('hydrogen_1'):.4g}
-            number density lithium 7: {self.number_density('lithium_7'):.4g}
-            scale factor lithium 7: {self.scale_factor_lithium_7():.4g}
+            number density lithium 7: {self.number_density('nitrogen_14'):.4g}
                 """
         )
 
