@@ -2,6 +2,31 @@
 Script simulates the Energy production at the center of a star.
 """
 import numpy as np
+MASS = { #kg
+
+    "hydrogen_1":1.6738e-27,
+    "helium_3":5.0081e-27, 
+    "helium_4":6.6464e-27,
+    "electron":9.1094e-31
+}
+
+def converted_mass_to_energy(mass_difference):
+    speed_of_light = 2.9979e8
+    return mass_difference*speed_of_light**2
+
+def converted_mass_to_energy_PP0():
+    """
+    Applies the mass-energy equivalency principle to compute the energy freed
+    in the PP 0 chain, where three hydrogen 1 nuclei are converted to a
+    single helium 3 nucleus, and a positron and electron annihilate.
+    """
+    input_mass = 3*MASS["hydrogen_1"] + 2*MASS["electron"]
+    output_mass = MASS["helium_3"]
+    converted_mass = input_mass - output_mass
+    return converted_mass_to_energy(converted_mass)
+print(f"{converted_mass_to_energy_PP0()=:.4g}")
+
+
 
 
 def evaluate(expected, computed, tolerance=1e-5):
@@ -311,7 +336,10 @@ class EnergyProduction:
     def reaction_rate_per_unit_mass_pp(self):
         """
         Computes the reaction rate per unit mass [reactions/s/kg] for the
-        fusion of hydrogen 1 nuclei, forming deuterium.
+        fusion of hydrogen 1 nuclei, forming deuterium. Assuming near
+        instantaneous fusion of hydrogen 1 and deuterium, this is also
+        the reaction rate per unit mass for hydrogen 1 and deuterium,
+        forming helium 3.
         this is the first step of the PP chain.
         """
         reaction_rate_per_unit_mass = (
@@ -326,6 +354,10 @@ class EnergyProduction:
         """
         Computes the reaction rate per unit mass [reactions/s/kg] for the
         fusion of helium 3 nuclei, forming helium 4 and hydrogen 1.
+        By default, the reaction rate per unit mass is scaled such that
+        the rate of consumption for helium 3 does not exceed the rate at
+        which it is produced, but the unscaled rate may also be computed,
+        such that the scaling factor itself can be computed too.
         This is the first and only step within the pp 1 branch.
         """
         reaction_rate_per_unit_mass = (
@@ -342,6 +374,10 @@ class EnergyProduction:
         """
         Computes the reaction rate per unit mass [reactions/s/kg] for the
         fusion of helium 3 and helium 4, forming lithium 6.
+        By default, the reaction rate per unit mass is scaled such that the 
+        rate of consumption for helium 3 does not exceed the rate at which it
+        is produced, but the unscaled rate may also be computed, such that the
+        scaling factor itself can be computed too.
         this is the first step within the PP 2 and PP 3 branches.
         """
         reaction_rate_per_unit_mass = (
@@ -358,6 +394,10 @@ class EnergyProduction:
         """
         Computes the reaction rate per unit mass [reactions/s/kg] for the
         electron capture by beryllium 7, forming lithium 7.
+        By default, the reaction rate per unit mass is scaled such that the
+        rate of consumption for helium 3 does not exceed the rate at which it
+        is produced, but the unscaled rate may also be computed, such that the
+        scaling factor itself can be computed too.
         This is the second step within the PP 2 branch.
         """
         reaction_rate_per_unit_mass = (
@@ -374,6 +414,10 @@ class EnergyProduction:
         """
         Computes the reaction rate per unit mass [reactions/s/kg] for the
         fusion of lithium and hydrogen 1, forming helium 4.
+        By default, the reaction rate per unit mass is scaled such that the
+        rate of consumption for lithium 7 does not exceed the rate at which it
+        is produced, but the unscaled rate may also be computed, such that the
+        scaling factor itself can be computed too.
         This is the third and final step within the PP 2 branch.
         """
         reaction_rate_per_unit_mass = (
@@ -390,6 +434,13 @@ class EnergyProduction:
         """
         Computes the reaction rate per unit mass [reactions/s/kg] for the
         fusion of hydrogen 1 and Beryllium 7, forming boron 8.
+        Assuming near instantaneous decay of boron 8, forming beryllium 8, and
+        the near instantaneous decay of beryllium 8, forming helium 4 nuclei,
+        this is also the reaction rate per unit mass for both of these.
+        By default, the reaction rate per unit mass is scaled such that the
+        rate of consumption for helium 3 does not exceeds the rate at which it
+        is procued, but the unscaled rate may also be computed, such that the
+        scaling factor itself can be computed too.
         This is the second step within the PP3 branch.
         """
         reaction_rate_per_unit_mass = (
@@ -406,8 +457,9 @@ class EnergyProduction:
         """
         Computes the reaction rate per unit mass [reactions/s/kg] for the
         fusion of hydrogen 1 and nitrogen 14, forming oxygen 15.
-        this is the fourth, and only step within the CNO-cycle that is not
-        nearly instantaneous.
+        assuming all other reaction rates near instantaneous, this is the
+        reaction rate per unit mass for all reactions within the CNO cycle.
+        this is the fourth step of the CNO-cycle.
         """
         reaction_rate_per_unit_mass = (
             self._reaction_rate_p14()
@@ -420,11 +472,8 @@ class EnergyProduction:
     def energy_production_rate_pp(self):
         """
         Computes the energy production rate per unit volume [J/m^3/s] for the
-        fusion of hydrogen 1 nuclei, forming deuterium, aswell as
-        the fusion of deuterium and hydrogen 3, forming helium 3.
-        They are steps one and two within the PP 0 branch respectively,
-        and are combined due to the near instantaneous fusion of deuterium
-        and hydrogen 1.
+        PP 0 chain, i.e. fusion of hydrogen 1 nuclei, forming deuterium,
+        aswell as the fusion of deuterium and hydrogen 3, forming helium 3.
         """
         released_energy_pp = 1.177 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
         released_energy_pd = 5.494 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
