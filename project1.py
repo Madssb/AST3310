@@ -64,9 +64,11 @@ class EnergyProduction:
         "hydrogen_1", and is limited to those found as keys in the key
         pairs that live in the mass_fraction dictionary.
         """
-        nucleus_mass = int(atom_isotope[-1]) * self.ATOMIC_MASS_UNIT
+        atom, nucleon_count = atom_isotope.split("_")
+        nucleon_count = int(nucleon_count)
+        nucleus_mass = nucleon_count * self.ATOMIC_MASS_UNIT
         return self.mass_density * self.MASS_FRACTIONS[atom_isotope] / nucleus_mass
-
+    
     def number_density_electron(self):
         """
         Computes the total number density of electrons, assuming each element is fully ionized.
@@ -484,7 +486,7 @@ class EnergyProduction:
         computes the energy production rate per unit volume [J/m^3/s] for the
         entire CNO cycle, gated by the reaction rate per unit mass for the
         fusion of nitrogen 14 and hydrogen 1, as other fusions in the CNO-
-        cycle are demmed near instantaneous.
+        cycle are deemed near instantaneous.
         """
         released_energy_p12 = 1.944 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
         released_energy_13 = 1.513 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
@@ -546,32 +548,6 @@ class EnergyProduction:
         evaluate(3.45e4, self.energy_production_rate_p14(), 1e2)
         self.temperature9 = temp
         self.mass_density = temp2
-
-    def debug(self):
-        """
-        used for debugging, mainly prints values.
-        """
-        epsilon = 9.18e-8
-        Q = (
-            1.944 + 1.513 + 7.551 + 7.297 + 1.757 + 4.966
-        ) * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
-        expected_reaction_rate_per_unit_mass = epsilon / Q / self.mass_density
-        expected_reaction_rate = (
-            expected_reaction_rate_per_unit_mass
-            * self.mass_density
-            / self.number_density("hydrogen_1")
-            / self.number_density("nitrogen_14")
-        )
-        print(
-            f"""
-            Reaction rate per unit mass. Computed: {self.reaction_rate_per_unit_mass_p14():.4g},  expected: {expected_reaction_rate_per_unit_mass:.4g}
-            reaction rate. Computed: {self.reaction_rate_p14():.4g}, expected: {expected_reaction_rate:.4g}
-            production rate. Computed: {self.energy_production_rate_p14():.4g}, expected: {epsilon:.4g}
-            mass density: {self.mass_density:.4g}
-            number density hydrogen 1: {self.number_density('hydrogen_1'):.4g}
-            number density lithium 7: {self.number_density('nitrogen_14'):.4g}
-                """
-        )
 
 
 instance = EnergyProduction()
