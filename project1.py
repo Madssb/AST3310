@@ -425,25 +425,25 @@ class EnergyProduction:
         """
         reaction_rate_per_unit_mass = (
             self._reaction_rate_33()
-            * self.number_density("helium_3") ** 2
-            / self.mass_density
-            / 2
-        )
-        if apply_scale_factor:
-            reaction_rate_per_unit_mass *= self.scale_factor_helium_3()
-        return reaction_rate_per_unit_mass
+                * self.number_density("helium_3") ** 2
+                / self.mass_density
+                / 2
+            )
+            if apply_scale_factor:
+                reaction_rate_per_unit_mass *= self.scale_factor_helium_3()
+            return reaction_rate_per_unit_mass
 
-    def reaction_rate_per_unit_mass_34(self, apply_scale_factor=True):
-        """
-        Computes the reaction rate per unit mass [reactions/s/kg] for the
-        fusion of helium 3 and helium 4, forming lithium 6.
-        By default, the reaction rate per unit mass is scaled such that the
-        rate of consumption for helium 3 does not exceed the rate at which it
-        is produced, but the unscaled rate may also be computed, such that the
-        scaling factor itself can be computed too.
-        this is the first step within the PP 2 and PP 3 branches.
-        """
-        reaction_rate_per_unit_mass = (
+        def reaction_rate_per_unit_mass_34(self, apply_scale_factor=True):
+            """
+            Computes the reaction rate per unit mass [reactions/s/kg] for the
+            fusion of helium 3 and helium 4, forming lithium 6.
+            By default, the reaction rate per unit mass is scaled such that the
+            rate of consumption for helium 3 does not exceed the rate at which it
+            is produced, but the unscaled rate may also be computed, such that the
+            scaling factor itself can be computed too.
+            this is the first step within the PP 2 and PP 3 branches.
+            """
+            reaction_rate_per_unit_mass = (
             self._reaction_rate_34()
             * self.number_density("helium_3")
             * self.number_density("helium_4")
@@ -649,6 +649,33 @@ class EnergyProduction:
             * released_energy_cno
             * self.mass_density
         )
+
+    def energy_production_rate_pp_1(self):
+        """
+        Computes the energy production rate for the PP 1 branch, by summing
+        the energy production rates for all relevant steps.
+        steps used by multiple PP branches are not normalized, and as such,
+        this method may compute the wrong value.
+        """
+        return np.sum([
+            self.energy_production_rate_pp(),
+            self.energy_production_rate_33()
+        ])
+    
+    def energy_production_rate_pp_2(self):
+        return np.sum([
+            self.energy_production_rate_pp(),
+            self.energy_production_rate_34(),
+            self.energy_production_rate_e7(),
+            self.energy_production_rate_17_()
+        ])
+
+    def energy_production_rate_pp_3(self):
+        return np.sum([
+            self.energy_production_rate_pp(),
+            self.energy_production_rate_34(),
+            self.energy_production_rate_17()
+        ])
 
     def sanity_check(self):
         """
