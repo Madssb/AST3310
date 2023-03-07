@@ -560,8 +560,11 @@ class EnergyProduction:
         ])
 
 
-
 class SanityCheck(EnergyProduction):
+    """
+    Ensures the validity of reaction rates aswell as reaction rates per unit
+    mass inside EnergyProduction by comparing their output with known values.
+    """
     def __init__(self):
         super().__init__()
 
