@@ -532,6 +532,39 @@ class EnergyProduction:
         )
         return reaction_rate_per_unit_mass
 
+    def energy_production_rate_pp_1(self):
+        """
+        Computes the energy production rate for the PP 1 branch, by summing
+        the energy production rates for all relevant steps.
+        steps used by multiple PP branches are not normalized, and as such,
+        this method may compute the wrong value.
+        """
+        return np.sum([
+            self.energy_production_rate_pp(),
+            self.energy_production_rate_33()
+        ])
+    
+    def energy_production_rate_pp_2(self):
+        return np.sum([
+            self.energy_production_rate_pp(),
+            self.energy_production_rate_34(),
+            self.energy_production_rate_e7(),
+            self.energy_production_rate_17_()
+        ])
+
+    def energy_production_rate_pp_3(self):
+        return np.sum([
+            self.energy_production_rate_pp(),
+            self.energy_production_rate_34(),
+            self.energy_production_rate_17()
+        ])
+
+
+
+class SanityCheck(EnergyProduction):
+    def __init__(self):
+        super().__init__()
+
     def _sanity_check_pp(self):
         """
         Computes the energy production rate per unit volume [J/m^3/s] for the
@@ -652,34 +685,6 @@ class EnergyProduction:
             * released_energy_cno
             * self.mass_density
         )
-
-    def energy_production_rate_pp_1(self):
-        """
-        Computes the energy production rate for the PP 1 branch, by summing
-        the energy production rates for all relevant steps.
-        steps used by multiple PP branches are not normalized, and as such,
-        this method may compute the wrong value.
-        """
-        return np.sum([
-            self.energy_production_rate_pp(),
-            self.energy_production_rate_33()
-        ])
-    
-    def energy_production_rate_pp_2(self):
-        return np.sum([
-            self.energy_production_rate_pp(),
-            self.energy_production_rate_34(),
-            self.energy_production_rate_e7(),
-            self.energy_production_rate_17_()
-        ])
-
-    def energy_production_rate_pp_3(self):
-        return np.sum([
-            self.energy_production_rate_pp(),
-            self.energy_production_rate_34(),
-            self.energy_production_rate_17()
-        ])
-
     def sanity_check(self):
         """
         Verifies the computation of the various energy production rates by
@@ -717,5 +722,6 @@ class EnergyProduction:
         self.mass_density = temp2
 
 
-instance = EnergyProduction()
+
+instance = SanityCheck()
 instance.sanity_check()
