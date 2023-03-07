@@ -429,26 +429,26 @@ class EnergyProduction:
                 / self.mass_density
                 / 2
             )
-            if apply_scale_factor:
-                reaction_rate_per_unit_mass *= self.scale_factor_helium_3()
-            return reaction_rate_per_unit_mass
+        if apply_scale_factor:
+            reaction_rate_per_unit_mass *= self.scale_factor_helium_3()
+        return reaction_rate_per_unit_mass
 
-        def reaction_rate_per_unit_mass_34(self, apply_scale_factor=True):
-            """
-            Computes the reaction rate per unit mass [reactions/s/kg] for the
-            fusion of helium 3 and helium 4, forming lithium 6.
-            By default, the reaction rate per unit mass is scaled such that the
-            rate of consumption for helium 3 does not exceed the rate at which it
-            is produced, but the unscaled rate may also be computed, such that the
-            scaling factor itself can be computed too.
-            this is the first step within the PP 2 and PP 3 branches.
-            """
-            reaction_rate_per_unit_mass = (
-            self._reaction_rate_34()
-            * self.number_density("helium_3")
-            * self.number_density("helium_4")
-            / self.mass_density
-        )
+    def reaction_rate_per_unit_mass_34(self, apply_scale_factor=True):
+        """
+        Computes the reaction rate per unit mass [reactions/s/kg] for the
+        fusion of helium 3 and helium 4, forming lithium 6.
+        By default, the reaction rate per unit mass is scaled such that the
+        rate of consumption for helium 3 does not exceed the rate at which it
+        is produced, but the unscaled rate may also be computed, such that the
+        scaling factor itself can be computed too.
+        this is the first step within the PP 2 and PP 3 branches.
+        """
+        reaction_rate_per_unit_mass = (
+        self._reaction_rate_34()
+        * self.number_density("helium_3")
+        * self.number_density("helium_4")
+        / self.mass_density
+    )
         if apply_scale_factor:
             reaction_rate_per_unit_mass *= self.scale_factor_helium_3()
         return reaction_rate_per_unit_mass
@@ -532,11 +532,13 @@ class EnergyProduction:
         )
         return reaction_rate_per_unit_mass
 
-    def energy_production_rate_pp(self):
+    def _sanity_check_pp(self):
         """
         Computes the energy production rate per unit volume [J/m^3/s] for the
-        PP 0 chain, i.e. fusion of hydrogen 1 nuclei, forming deuterium,
+        fusion of hydrogen 1 nuclei, forming deuterium,
         aswell as the fusion of deuterium and hydrogen 3, forming helium 3.
+        Useless for computing the energy production rate for PP branches,
+        but used within the sanity check.
         """
         released_energy_pp = 1.177 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         released_energy_pd = 5.494 * self.MEV_TO_JOULE_CONVERSION_FACTOR
@@ -547,7 +549,7 @@ class EnergyProduction:
         )
         return reaction_rate_per_unit_mass
 
-    def energy_production_rate_33(self):
+    def _sanity_check_33(self):
         """
         Computes the energy production rate per unit volume [J/m^3/s] for the
         fusion of helium 3 nuclei, forming helium 4 and hydrogen 1,
@@ -562,7 +564,7 @@ class EnergyProduction:
             * self.mass_density
         )
 
-    def energy_production_rate_34(self):
+    def _sanity_check_34(self):
         """
         Computes energy production rate per unit volume [J/m^3/s] for the
         fusion of helium 3 and helium 4, forming beryllium 7 and hydrogen 1.
@@ -577,7 +579,7 @@ class EnergyProduction:
             * self.mass_density
         )
 
-    def energy_production_rate_e7(self):
+    def _sanity_check_e7(self):
         """
         Computes the energy production rate per unit volume [J/m^3/s] for the
         decay of beryllium 7, forming lithium 7.
@@ -590,7 +592,7 @@ class EnergyProduction:
             * self.mass_density
         )
 
-    def energy_production_rate_17_(self):
+    def _sanity_check_17_(self):
         """
         Computes the energy production rate per unit volume [J/m^3/s] for the
         fusion of lithium 7 and hydrogen 1, forming helium 4.
@@ -603,7 +605,7 @@ class EnergyProduction:
             * self.mass_density
         )
 
-    def energy_production_rate_17(self):
+    def _sanity_check_17(self):
         """
         Computes the energy production rate per unit volume [J/m^3/s] for the
         fusion of beryllium 7 and hydrogen 1, forming boron 8, aswell as the
@@ -618,10 +620,11 @@ class EnergyProduction:
             [released_energy_17, released_energy_8, released_energy_8_]
         )
         return (
-            self.reaction_rate_per_unit_mass_17() * released_energy * self.mass_density
+            self.reaction_rate_per_unit_mass_17() 
+            * released_energy * self.mass_density
         )
 
-    def energy_production_rate_p14(self):
+    def _sanity_check_p14(self):
         """
         computes the energy production rate per unit volume [J/m^3/s] for the
         entire CNO cycle, gated by the reaction rate per unit mass for the
@@ -695,21 +698,21 @@ class EnergyProduction:
             self.mass_density == 1.62e5
         ), f"expected rho =  {1.62e5}kg/m^3, actual rho =  {self.mass_density}kg/m^3."
 
-        evaluate(4.04e2, self.energy_production_rate_pp(), tolerance=1)
-        evaluate(8.68e-9, self.energy_production_rate_33(), tolerance=1e-11)
-        evaluate(4.86e-5, self.energy_production_rate_34(), tolerance=1e-7)
-        evaluate(1.49e-6, self.energy_production_rate_e7(), tolerance=1e-8)
-        evaluate(5.29e-4, self.energy_production_rate_17_(), tolerance=1e-6)
-        evaluate(1.63e-6, self.energy_production_rate_17(), tolerance=1e-8)
-        evaluate(9.18e-8, self.energy_production_rate_p14(), tolerance=1e-10)
+        evaluate(4.04e2, self._sanity_check_pp(), tolerance=1)
+        evaluate(8.68e-9, self._sanity_check_33(), tolerance=1e-11)
+        evaluate(4.86e-5, self._sanity_check_34(), tolerance=1e-7)
+        evaluate(1.49e-6, self._sanity_check_e7(), tolerance=1e-8)
+        evaluate(5.29e-4, self._sanity_check_17_(), tolerance=1e-6)
+        evaluate(1.63e-6, self._sanity_check_17(), tolerance=1e-8)
+        evaluate(9.18e-8, self._sanity_check_p14(), tolerance=1e-10)
         self.temperature9 = 1e8 * 1e-9
-        evaluate(7.34e4, self.energy_production_rate_pp(), 1e2)
-        evaluate(1.09, self.energy_production_rate_33(), 1e-2)
-        evaluate(1.74e4, self.energy_production_rate_34(), 1e2)
-        evaluate(1.22e-3, self.energy_production_rate_e7(), 1e-1)
-        evaluate(4.35e-1, self.energy_production_rate_17_(), 1e-3)
-        evaluate(1.26e5, self.energy_production_rate_17(), 1e3)
-        evaluate(3.45e4, self.energy_production_rate_p14(), 1e2)
+        evaluate(7.34e4, self._sanity_check_pp(), 1e2)
+        evaluate(1.09, self._sanity_check_33(), 1e-2)
+        evaluate(1.74e4, self._sanity_check_34(), 1e2)
+        evaluate(1.22e-3, self._sanity_check_e7(), 1e-1)
+        evaluate(4.35e-1, self._sanity_check_17_(), 1e-3)
+        evaluate(1.26e5, self._sanity_check_17(), 1e3)
+        evaluate(3.45e4, self._sanity_check_p14(), 1e2)
         self.temperature9 = temp
         self.mass_density = temp2
 
