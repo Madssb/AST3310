@@ -2,31 +2,93 @@
 Script simulates the Energy production at the center of a star.
 """
 import numpy as np
-MASS = { #kg
 
-    "hydrogen_1":1.6738e-27,
-    "helium_3":5.0081e-27, 
-    "helium_4":6.6464e-27,
-    "electron":9.1094e-31
+MASS = {  # u
+    "hydrogen_1": 1.007825,
+    "helium_3": 3.0160,
+    "helium_4": 4.0026,
 }
 
-def converted_mass_to_energy(mass_difference):
-    speed_of_light = 2.9979e8
-    return mass_difference*speed_of_light**2
 
-def converted_mass_to_energy_PP0():
+def converted_mass_to_energy(mass_difference):
+    """
+    applies the mass-energy equivalency principle E=mc^2 to convert mass
+    defiency [u] into the corresponding energy [MeV], utilizing a conversion factor for
+    atomic mass units to MeV.
+    """
+    u_to_mev_per_c_squared = 931.4941  # MeV/c^2
+    return mass_difference * u_to_mev_per_c_squared  # Mev
+
+
+def energy_pp0():
     """
     Applies the mass-energy equivalency principle to compute the energy freed
     in the PP 0 chain, where three hydrogen 1 nuclei are converted to a
-    single helium 3 nucleus, and a positron and electron annihilate.
+    single helium 3 nucleus. The annihilation of protons and electrons are
+    not included.
     """
-    input_mass = 3*MASS["hydrogen_1"] + 2*MASS["electron"]
-    output_mass = MASS["helium_3"]
-    converted_mass = input_mass - output_mass
-    return converted_mass_to_energy(converted_mass)
-print(f"{converted_mass_to_energy_PP0()=:.4g}")
+    input_mass = 3 * MASS["hydrogen_1"]  # u
+    output_mass = MASS["helium_3"]  # u
+    converted_mass = input_mass - output_mass  # u
+    return converted_mass_to_energy(converted_mass)  # MeV
 
 
+def energy_pp1():
+    """
+    Applies the mass-energy equivalency principle to compute the energy freed
+    in the PP 1 branch, where two helium 3 nuclei fuse, forming helium 4 and
+    two hydrogen 1 nuclei. Energy also includes the energy produced by
+    2 iterations of PP0 because we require two helium 3 nuclei.
+    """
+    input_mass = 2 * MASS["helium_3"]  # u
+    output_mass = MASS["helium_4"] + 2 * MASS["hydrogen_1"]  # u
+    converted_mass = input_mass - output_mass  # u
+    return converted_mass_to_energy(converted_mass) + 2 * energy_pp0()  # MeV
+
+
+def energy_pp2_pp3():
+    """
+    Applies the mass-energy equivalency principle to compute the energy freed
+    in the PP 2 and 3 branches, where through three and four steps
+    respectively, helium 3, helium 4 and hydrogen 1 form two helium 4 nuclei.
+    Energy produced by PP0 is also included due to helium 3 nucleon required.
+    """
+    input_mass = MASS["helium_3"] + MASS["helium_4"] + MASS["hydrogen_1"]  # u
+    output_mass = 2 * MASS["helium_4"]  # u
+    converted_mass = input_mass - output_mass  # u
+    return converted_mass_to_energy(converted_mass) + energy_pp0()  # MeV
+
+
+def energies():
+    """
+    compute the energy lost via neutrinos for the PP branches, and compares
+    with the total energy produced per PP branch.
+    """
+    neutrino_energy_lost_pp0 = 0.265  # MeV
+    neutrino_energy_lost_pp1 = 2 * neutrino_energy_lost_pp0
+    neutrino_energy_lost_pp2 = 0.815 + neutrino_energy_lost_pp0  # MeV
+    neutrino_energy_lost_pp3 = 6.711 + neutrino_energy_lost_pp0   # MeV
+    print(
+        f"""
+PP1:
+Energy output: {energy_pp1():.4g}MeV,
+lost to neutrino: {neutrino_energy_lost_pp1:.4g}MeV,
+percentage of energy lost: {neutrino_energy_lost_pp0/energy_pp0()*1e2:.4g}%.
+
+PP2
+Energy output: {energy_pp2_pp3():.4g}MeV,
+lost to neutrino: {neutrino_energy_lost_pp2:.4g}MeV,
+percentage of energy lost: {neutrino_energy_lost_pp2/energy_pp2_pp3()*1e2:.4g}%.
+
+PP3:
+Energy output: {energy_pp2_pp3():.4g}MeV,
+lost to neutrino: {neutrino_energy_lost_pp3:.4g}MeV,
+percentage of energy lost: {neutrino_energy_lost_pp3/energy_pp2_pp3()*1e2:.4g}%.
+"""
+    )
+
+
+energies()
 
 
 def evaluate(expected, computed, tolerance=1e-5):
@@ -59,7 +121,8 @@ class EnergyProduction:
     Calculates the energy production rate at the core of a star based on the
     input temperature [K] and mass density [kg/m^3].
     """
-    ELECTRON_TO_JOULE_CONVERSION_FACTOR = 1.6022e-19 * 1e6  # Joule/MeV
+
+    MEV_TO_JOULE_CONVERSION_FACTOR = 1.6022e-19 * 1e6  # Joule/MeV
     ATOMIC_MASS_UNIT = 1.6605e-27  # kg
     MASS_FRACTIONS = {
         "hydrogen_1": 0.7,
@@ -95,7 +158,7 @@ class EnergyProduction:
 
     def number_density_electron(self):
         """
-        Computes the total number density of electrons. 
+        Computes the total number density of electrons.
         Each element is assumed each element fully ionized.
         """
         return np.sum(
@@ -113,12 +176,12 @@ class EnergyProduction:
         """
         Computes the factor which scales the reaction rate per unit mass for
         helium 3 consuming reactions, i.e. the fusion of helium 3 nuclei,
-        aswell as the fusion of helium 3 and helium 4, such that their 
+        aswell as the fusion of helium 3 and helium 4, such that their
         consumption doesn't exceed the rate at which helium 3 is produced by
-        the fusion of hydrogen 1 nuclei, aswell as the fusion of hydrogen 1 
+        the fusion of hydrogen 1 nuclei, aswell as the fusion of hydrogen 1
         and deuterium.
         If consumption exceeds production, returns production/consumption.
-        If consumption does not exceed production, returns 1. 
+        If consumption does not exceed production, returns 1.
         """
         production_helium_3 = self.reaction_rate_per_unit_mass_pp()
         consumption_helium_3 = np.sum(
@@ -139,7 +202,7 @@ class EnergyProduction:
         their consumption doesn't exceed the rate at which beryllium 7 is
         produced by the fusion of helium 3 and helium 4.
         If consumption exceeds production, returns production/consumption.
-        If consumption does not exceed production, returns 1. 
+        If consumption does not exceed production, returns 1.
         """
         production_beryllium_7 = self.reaction_rate_per_unit_mass_34()
         consumption_beryllium_7 = np.sum(
@@ -159,7 +222,7 @@ class EnergyProduction:
         hydrogen 1, such that it's consumption does not exceed the rate at
         which lithium 7 is produced by the electron capture by beryllium 7.
         If consumption exceeds production, returns production/consumption.
-        If consumption does not exceed production, returns 1. 
+        If consumption does not exceed production, returns 1.
         """
         production_lithium_7 = self.reaction_rate_per_unit_mass_e7(
             apply_scale_factor=True
@@ -239,7 +302,7 @@ class EnergyProduction:
         by beryllium 7, forming lithium 7.
         For temperatures below 1M Kelvin, the reaction rate is restricted to
         a known upper limit.
-        The reaction rate is unscaled, meaning that the computation is wrong 
+        The reaction rate is unscaled, meaning that the computation is wrong
         for conditions where the rate of consumption for beryllium 7 exceeds
         the rate at which it is produced.
         This is the the second step within the PP2 branch.
@@ -374,7 +437,7 @@ class EnergyProduction:
         """
         Computes the reaction rate per unit mass [reactions/s/kg] for the
         fusion of helium 3 and helium 4, forming lithium 6.
-        By default, the reaction rate per unit mass is scaled such that the 
+        By default, the reaction rate per unit mass is scaled such that the
         rate of consumption for helium 3 does not exceed the rate at which it
         is produced, but the unscaled rate may also be computed, such that the
         scaling factor itself can be computed too.
@@ -475,8 +538,8 @@ class EnergyProduction:
         PP 0 chain, i.e. fusion of hydrogen 1 nuclei, forming deuterium,
         aswell as the fusion of deuterium and hydrogen 3, forming helium 3.
         """
-        released_energy_pp = 1.177 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
-        released_energy_pd = 5.494 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
+        released_energy_pp = 1.177 * self.MEV_TO_JOULE_CONVERSION_FACTOR
+        released_energy_pd = 5.494 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         reaction_rate_per_unit_mass = (
             self.reaction_rate_per_unit_mass_pp()
             * (released_energy_pp + released_energy_pd)
@@ -492,7 +555,7 @@ class EnergyProduction:
         which it is produced.
         This is the first and only step within the PP 1 branch.
         """
-        released_energy_33 = 12.860 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
+        released_energy_33 = 12.860 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         return (
             self.reaction_rate_per_unit_mass_33()
             * released_energy_33
@@ -507,7 +570,7 @@ class EnergyProduction:
         which it is produced.
         This is the first step within the PP 2 and PP 3 branches.
         """
-        released_energy_34 = 1.586 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
+        released_energy_34 = 1.586 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         return (
             self.reaction_rate_per_unit_mass_34()
             * released_energy_34
@@ -520,7 +583,7 @@ class EnergyProduction:
         decay of beryllium 7, forming lithium 7.
         This is the second step within the PP 2 branch.
         """
-        released_energy_e7 = 0.049 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
+        released_energy_e7 = 0.049 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         return (
             self.reaction_rate_per_unit_mass_e7()
             * released_energy_e7
@@ -533,7 +596,7 @@ class EnergyProduction:
         fusion of lithium 7 and hydrogen 1, forming helium 4.
         This is the third and final step within the PP 2 branch.
         """
-        released_energy_17_ = 17.346 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
+        released_energy_17_ = 17.346 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         return (
             self.reaction_rate_per_unit_mass_17_()
             * released_energy_17_
@@ -548,9 +611,9 @@ class EnergyProduction:
         to the the near instantaneous  decay of beryllium 8, forming helium 4
         nuclei, which are steps 2, 3 and 4 of the PP 3 branch, respectively.
         """
-        released_energy_17 = 0.137 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
-        released_energy_8 = 8.367 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
-        released_energy_8_ = 2.995 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
+        released_energy_17 = 0.137 * self.MEV_TO_JOULE_CONVERSION_FACTOR
+        released_energy_8 = 8.367 * self.MEV_TO_JOULE_CONVERSION_FACTOR
+        released_energy_8_ = 2.995 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         released_energy = sum(
             [released_energy_17, released_energy_8, released_energy_8_]
         )
@@ -565,12 +628,12 @@ class EnergyProduction:
         fusion of nitrogen 14 and hydrogen 1, as other fusions in the CNO-
         cycle are deemed near instantaneous.
         """
-        released_energy_p12 = 1.944 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
-        released_energy_13 = 1.513 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
-        released_energy_p13 = 7.551 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
-        released_energy_p14 = 7.297 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
-        released_energy_15 = 1.757 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
-        released_energy_p15 = 4.966 * self.ELECTRON_TO_JOULE_CONVERSION_FACTOR
+        released_energy_p12 = 1.944 * self.MEV_TO_JOULE_CONVERSION_FACTOR
+        released_energy_13 = 1.513 * self.MEV_TO_JOULE_CONVERSION_FACTOR
+        released_energy_p13 = 7.551 * self.MEV_TO_JOULE_CONVERSION_FACTOR
+        released_energy_p14 = 7.297 * self.MEV_TO_JOULE_CONVERSION_FACTOR
+        released_energy_15 = 1.757 * self.MEV_TO_JOULE_CONVERSION_FACTOR
+        released_energy_p15 = 4.966 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         released_energy_cno = sum(
             [
                 released_energy_p12,
