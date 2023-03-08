@@ -59,6 +59,7 @@ def energy_pp2_pp3():
     converted_mass = input_mass - output_mass  # u
     return converted_mass_to_energy(converted_mass) + energy_pp0()  # MeV
 
+
 def energy_cno():
     """
     Applies the mass-energy equivalency principle to compute the energy freed in
@@ -69,6 +70,7 @@ def energy_cno():
     output_mass = MASS["helium_4"]
     converted_mass = input_mass - output_mass
     return converted_mass_to_energy(converted_mass)
+
 
 def energies():
     """
@@ -105,6 +107,7 @@ percentage of energy lost: {neutrino_energy_lost_cno/energy_cno()*1e2:.4g}%.
 """
     )
 
+
 def evaluate(expected, computed, tolerance=1e-5):
     """
     Verifies if computations match their expected value, used exclusively
@@ -125,7 +128,8 @@ def convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro):
     corresponds to.
     """
     avogadros_number = 6.0221e23  # 1/mol
-    reaction_rate_cm = reaction_rate_cm_avogadro / avogadros_number  # reactions*cm^3/s
+    reaction_rate_cm = reaction_rate_cm_avogadro / \
+        avogadros_number  # reactions*cm^3/s
     reaction_rate_m = reaction_rate_cm / 1e6  # reactions*m^3/s
     return reaction_rate_m
 
@@ -167,7 +171,8 @@ class ReactionRate:
                 + 0.938 * self.temperature9
             )
         )
-        reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        reaction_rate_m = convert_cm_to_m_reaction_rate(
+            reaction_rate_cm_avogadro)
         return reaction_rate_m
 
     def reaction_rate_33(self):
@@ -189,7 +194,8 @@ class ReactionRate:
                 + 0.213 * self.temperature9 ** (5 / 3)
             )
         )
-        reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        reaction_rate_m = convert_cm_to_m_reaction_rate(
+            reaction_rate_cm_avogadro)
         return reaction_rate_m
 
     def reaction_rate_34(self):
@@ -208,7 +214,8 @@ class ReactionRate:
             * self.temperature9 ** (-3 / 2)
             * np.exp(-12.826 * temperature9_ ** (-1 / 3))
         )
-        reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        reaction_rate_m = convert_cm_to_m_reaction_rate(
+            reaction_rate_cm_avogadro)
         return reaction_rate_m
 
     def reaction_rate_e7(self):
@@ -236,9 +243,11 @@ class ReactionRate:
         )
         upper_limit_cm_avogadro = 1.57e-7 / self.number_density_electron()
         if self.temperature < 1e6:
-            reaction_rate_m = convert_cm_to_m_reaction_rate(upper_limit_cm_avogadro)
+            reaction_rate_m = convert_cm_to_m_reaction_rate(
+                upper_limit_cm_avogadro)
             return reaction_rate_m
-        reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        reaction_rate_m = convert_cm_to_m_reaction_rate(
+            reaction_rate_cm_avogadro)
         return reaction_rate_m
 
     def reaction_rate_17_(self):
@@ -263,7 +272,8 @@ class ReactionRate:
             * self.temperature9 ** (-3 / 2)
             * np.exp(-30.442 * self.temperature9 ** (-1))
         )
-        reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        reaction_rate_m = convert_cm_to_m_reaction_rate(
+            reaction_rate_cm_avogadro)
         return reaction_rate_m
 
     def reaction_rate_17(self):
@@ -280,7 +290,8 @@ class ReactionRate:
         ) + 2.53e3 * self.temperature9 ** (-3 / 2) * np.exp(
             -7.306 * self.temperature9 ** (-1)
         )
-        reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        reaction_rate_m = convert_cm_to_m_reaction_rate(
+            reaction_rate_cm_avogadro)
         return reaction_rate_m
 
     def reaction_rate_p14(self):
@@ -293,7 +304,8 @@ class ReactionRate:
             4.90e7
             * self.temperature9 ** (-2 / 3)
             * np.exp(
-                -15.228 * self.temperature9 ** (-1 / 3) - 0.092 * self.temperature9**2
+                -15.228 *
+                self.temperature9 ** (-1 / 3) - 0.092 * self.temperature9**2
             )
             * (
                 1
@@ -308,7 +320,8 @@ class ReactionRate:
             * np.exp(-3.011 * self.temperature9 ** (-1))
             + 2.19e4 * np.exp(-12.53 * self.temperature9 ** (-1))
         )
-        reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
+        reaction_rate_m = convert_cm_to_m_reaction_rate(
+            reaction_rate_cm_avogadro)
         return reaction_rate_m
 
 
@@ -381,7 +394,8 @@ class ReactionRatePerUnitMass(ReactionRate):
         production_helium_3 = self.reaction_rate_per_unit_mass_pp()
         consumption_helium_3 = np.sum(
             [
-                2 * self.reaction_rate_per_unit_mass_33(apply_scale_factor=False),
+                2 *
+                self.reaction_rate_per_unit_mass_33(apply_scale_factor=False),
                 self.reaction_rate_per_unit_mass_34(apply_scale_factor=False),
             ]
         )
@@ -566,13 +580,7 @@ class ReactionRatePerUnitMass(ReactionRate):
         )
         return reaction_rate_per_unit_mass
 
-    def print_reaction_rates_(self):
-        print(
-"""
-
-"""
-        )
-
+    
 class EnergyProduction(ReactionRatePerUnitMass):
     """
     computes the energy production rate for the PP branches, aswell as for the
@@ -600,17 +608,17 @@ class EnergyProduction(ReactionRatePerUnitMass):
         """
         initializes an object of EnergyProduction.
         """
-        super().__init__(mass_density, temperature)
+        #super().__init__(mass_density, temperature)
         #self.print_energy_production_rates()
 
     def energy_production_rate_pp_1(self):
         """
-        Computes the    
+        Computes the
         """
         return (
             (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
-         * self.reaction_rate_per_unit_mass_33()*2 
-         + self.RELEASED_ENERGY_33 * self.reaction_rate_per_unit_mass_33()
+            * self.reaction_rate_per_unit_mass_33()*2
+            + self.RELEASED_ENERGY_33 * self.reaction_rate_per_unit_mass_33()
         )
 
     def energy_production_rate_pp_2(self):
@@ -621,10 +629,10 @@ class EnergyProduction(ReactionRatePerUnitMass):
             * self.reaction_rate_per_unit_mass_34()
 
             + self.RELEASED_ENERGY_34 * self.reaction_rate_per_unit_mass_34()
-            *self.reaction_rate_per_unit_mass_e7()
-            / 
+            * self.reaction_rate_per_unit_mass_e7()
+            /
             (
-            self.reaction_rate_per_unit_mass_e7() + self.reaction_rate_per_unit_mass_17()
+                self.reaction_rate_per_unit_mass_e7() + self.reaction_rate_per_unit_mass_17()
             )
             #exclusive to PP 2 so we safe
             + self.RELEASED_ENERGY_E7 * self.reaction_rate_per_unit_mass_e7()
@@ -636,10 +644,10 @@ class EnergyProduction(ReactionRatePerUnitMass):
             (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
             * self.reaction_rate_per_unit_mass_34()
             + self.RELEASED_ENERGY_34 * self.reaction_rate_per_unit_mass_34()
-            *self.reaction_rate_per_unit_mass_17()
-            / 
+            * self.reaction_rate_per_unit_mass_17()
+            /
             (
-            self.reaction_rate_per_unit_mass_e7() + self.reaction_rate_per_unit_mass_17()
+                self.reaction_rate_per_unit_mass_e7() + self.reaction_rate_per_unit_mass_17()
             )
             #exclusive to PP 2 so we safe
             + (
@@ -653,27 +661,27 @@ class EnergyProduction(ReactionRatePerUnitMass):
     def energy_production_rate_cno(self):
         return (
             np.sum(
-            [
-            self.RELEASED_ENERGY_P12,
-            self.RELEASED_ENERGY_13,
-            self.RELEASED_ENERGY_P13,
-            self.RELEASED_ENERGY_P14,
-            self.RELEASED_ENERGY_15,
-            self.RELEASED_ENERGY_P15
-            ]
+                [
+                    self.RELEASED_ENERGY_P12,
+                    self.RELEASED_ENERGY_13,
+                    self.RELEASED_ENERGY_P13,
+                    self.RELEASED_ENERGY_P14,
+                    self.RELEASED_ENERGY_15,
+                    self.RELEASED_ENERGY_P15
+                ]
             )
-            *self.reaction_rate_per_unit_mass_p14()
+            * self.reaction_rate_per_unit_mass_p14()
         )
-    
+
     def total_energy_production_rate(self):
         return (
             np.sum(
-            [
-            self.energy_production_rate_pp_1(),
-            self.energy_production_rate_pp_2(),
-            self.energy_production_rate_pp_3(),
-            self.energy_production_rate_cno()
-            ]
+                [
+                    self.energy_production_rate_pp_1(),
+                    self.energy_production_rate_pp_2(),
+                    self.energy_production_rate_pp_3(),
+                    self.energy_production_rate_cno()
+                ]
             )
         )
 
@@ -685,25 +693,27 @@ Energy production rate for PP 1 branch: {self.energy_production_rate_pp_1():.4g}
 Energy production rate for PP 2 branch: {self.energy_production_rate_pp_2():.4g}J
 Energy production rate for PP 3 branch: {self.energy_production_rate_pp_3():.4g}J
 Energy production rate for CNO-cycle: {self.energy_production_rate_cno():.4g}J
-Total energy production rate in the context of producing helium 4: {self.total_energy_production_rate()}
+Total energy production rate: {self.total_energy_production_rate()}
             """
         )
-    def compute_energy_production_rate_arrays(self,temperature_array):
+
+    def compute_energy_production_rate_arrays(self, temperature_array):
         """
         computes a energy production rate matrix of size N x 5, where N is the
         # of temperatures in temperature array argument. this matrix is
         normalized, such that the sum of column elements equal 1.
         """
-        temperature_array_size = len(temperature_array) 
-        data = np.empty((temperature_array_size,5))
+        temperature_array_size = len(temperature_array)
+        data = np.empty((temperature_array_size, 5))
         for i in range(temperature_array_size):
             self.temperature9 = temperature_array[i]*1e-9
-            data[i,0] = self.energy_production_rate_pp_1()
-            data[i,1] = self.energy_production_rate_pp_2()
-            data[i,2] = self.energy_production_rate_pp_3()
-            data[i,3] = self.energy_production_rate_cno()
-            data[i,:] /= np.sum(data[i,:])
+            data[i, 0] = self.energy_production_rate_pp_1()
+            data[i, 1] = self.energy_production_rate_pp_2()
+            data[i, 2] = self.energy_production_rate_pp_3()
+            data[i, 3] = self.energy_production_rate_cno()
+            data[i, :] /= np.sum(data[i, :])
         return data
+
 
 class SanityCheck(EnergyProduction):
     """
@@ -853,11 +863,12 @@ class SanityCheck(EnergyProduction):
         evaluate(1.26e5, self._sanity_check_17(), 1e3)
         evaluate(3.45e4, self._sanity_check_p14(), 1e2)
 
+
 energies()
 SanityCheck()
 energies = EnergyProduction()
 energies.print_energy_production_rates()
-temperatures = np.logspace(4,9,1000)
+temperatures = np.logspace(4, 9, 1000)
 data = energies.compute_energy_production_rate_arrays(temperatures)
 fig, ax = plt.subplots(figsize=(8, 6))
 ax.plot(temperatures, data[:, 0], linestyle='-', color='black', label='PP 1')
@@ -867,12 +878,8 @@ ax.plot(temperatures, data[:, 3], linestyle='-.', color='black', label='CNO')
 ax.set_xlabel("Temperature [K]")
 ax.set_ylabel("Relative energy production")
 ax.set_xscale('log')
-ax.set_xticks([1e4, 1e5, 1e6, 1e7, 1e8, 1e9])  # set the x-ticks to follow the log scale
-ax.set_xlim(1e4,1e9)
+# set the x-ticks to follow the log scale
+ax.set_xticks([1e4, 1e5, 1e6, 1e7, 1e8, 1e9])
+ax.set_xlim(1e4, 1e9)
 ax.legend(loc='upper right', bbox_to_anchor=(0.5, 1))
 plt.show()
-
-
-
-
-
