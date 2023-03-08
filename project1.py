@@ -2,6 +2,7 @@
 Script simulates the Energy production at the center of a star.
 """
 import numpy as np
+import matplotlib.pyplot as plt
 
 MASS = {  # u
     "hydrogen_1": 1.007825,
@@ -58,16 +59,28 @@ def energy_pp2_pp3():
     converted_mass = input_mass - output_mass  # u
     return converted_mass_to_energy(converted_mass) + energy_pp0()  # MeV
 
+def energy_cno():
+    """
+    Applies the mass-energy equivalency principle to compute the energy freed in
+    the CNO-cycle, where through 6 steps, 4 hydrogen 1 nuclei form a helium 4
+    nucleon.
+    """
+    input_mass = 4*MASS["hydrogen_1"]
+    output_mass = MASS["helium_4"]
+    converted_mass = input_mass - output_mass
+    return converted_mass_to_energy(converted_mass)
 
 def energies():
     """
-    compute the energy lost via neutrinos for the PP branches, and compares
-    with the total energy produced per PP branch.
+    compute the energy gained from mass conversion per iterations for the PP
+    chains aswell as for the CNO-cycle. Compares this energy to the energy
+    which is lost by neutrinos escaping. Also prints all of this
     """
     neutrino_energy_lost_pp0 = 0.265  # MeV
     neutrino_energy_lost_pp1 = 2 * neutrino_energy_lost_pp0
     neutrino_energy_lost_pp2 = 0.815 + neutrino_energy_lost_pp0  # MeV
     neutrino_energy_lost_pp3 = 6.711 + neutrino_energy_lost_pp0  # MeV
+    neutrino_energy_lost_cno = 0.707 + 0.997
     print(
         f"""
 PP1:
@@ -84,8 +97,14 @@ PP3:
 Energy output: {energy_pp2_pp3():.4g}MeV,
 lost to neutrino: {neutrino_energy_lost_pp3:.4g}MeV,
 percentage of energy lost: {neutrino_energy_lost_pp3/energy_pp2_pp3()*1e2:.4g}%.
+
+CNO:
+Energy output: {energy_cno():.4g}MeV,
+lost to neutrino: {neutrino_energy_lost_cno:.4g}Mev,
+percentage of energy lost: {neutrino_energy_lost_cno/energy_cno()*1e2:.4g}%.
 """
     )
+
 def evaluate(expected, computed, tolerance=1e-5):
     """
     Verifies if computations match their expected value, used exclusively
@@ -93,7 +112,7 @@ def evaluate(expected, computed, tolerance=1e-5):
     """
     error = np.abs(expected - computed)
     error_message = (
-        f"expected {expected:.4g}, computed {computed:.4g}, error: {error:.4g} "
+        f"expected {expected:.4g}, computed {computed:.4g}, error: {error:.4g}."
     )
     assert error < tolerance, error_message
 
@@ -130,7 +149,7 @@ class ReactionRate:
         self.temperature = temperature  # K
         self.temperature9 = temperature * 1e-9  # 10^9K
 
-    def _reaction_rate_pp(self):
+    def reaction_rate_pp(self):
         """
         Computes the reaction rate [reactions*m^3/s] for the
         the fusion of hydrogen 1 nuclei, forming deuterium.
@@ -151,7 +170,7 @@ class ReactionRate:
         reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
         return reaction_rate_m
 
-    def _reaction_rate_33(self):
+    def reaction_rate_33(self):
         """
         Computes the reaction rate [reactions*m^3/s] for the fusion of
         helium 3 nuclei, forming helium 4 and hydrogen 1.
@@ -173,7 +192,7 @@ class ReactionRate:
         reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
         return reaction_rate_m
 
-    def _reaction_rate_34(self):
+    def reaction_rate_34(self):
         """
         Computes the reaction rate [reactions*m^3/s] for the fusion of
         Helium 3 and Helium 4, forming beryllium 7.
@@ -192,7 +211,7 @@ class ReactionRate:
         reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
         return reaction_rate_m
 
-    def _reaction_rate_e7(self):
+    def reaction_rate_e7(self):
         """
         Computes the reaction rate [reactions/s/m^3] for the electron capture
         by beryllium 7, forming lithium 7.
@@ -222,7 +241,7 @@ class ReactionRate:
         reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
         return reaction_rate_m
 
-    def _reaction_rate_17_(self):
+    def reaction_rate_17_(self):
         """
         Computes the reaction rate for [reactions*m^3/s/] the fusion of
         Lithium and hydrogen, forming helium 4.
@@ -247,7 +266,7 @@ class ReactionRate:
         reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
         return reaction_rate_m
 
-    def _reaction_rate_17(self):
+    def reaction_rate_17(self):
         """
         Computes the reaction rate [reactions*m^3/s] for the fusion of
         Beryllium 7 and hydrogen, forming boron 8.
@@ -264,7 +283,7 @@ class ReactionRate:
         reaction_rate_m = convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro)
         return reaction_rate_m
 
-    def _reaction_rate_p14(self):
+    def reaction_rate_p14(self):
         """
         Computes the reaction rate [reactions*m^3/s] for the fusion of
         nitrogen 14 and hydrogen 1, forming oxygen 15.
@@ -421,7 +440,7 @@ class ReactionRatePerUnitMass(ReactionRate):
         this is the first step of the PP chain.
         """
         reaction_rate_per_unit_mass = (
-            self._reaction_rate_pp()
+            self.reaction_rate_pp()
             * self.number_density("hydrogen_1") ** 2
             / self.mass_density
             / 2
@@ -439,7 +458,7 @@ class ReactionRatePerUnitMass(ReactionRate):
         This is the first and only step within the pp 1 branch.
         """
         reaction_rate_per_unit_mass = (
-            self._reaction_rate_33()
+            self.reaction_rate_33()
             * self.number_density("helium_3") ** 2
             / self.mass_density
             / 2
@@ -459,7 +478,7 @@ class ReactionRatePerUnitMass(ReactionRate):
         this is the first step within the PP 2 and PP 3 branches.
         """
         reaction_rate_per_unit_mass = (
-            self._reaction_rate_34()
+            self.reaction_rate_34()
             * self.number_density("helium_3")
             * self.number_density("helium_4")
             / self.mass_density
@@ -479,7 +498,7 @@ class ReactionRatePerUnitMass(ReactionRate):
         This is the second step within the PP 2 branch.
         """
         reaction_rate_per_unit_mass = (
-            self._reaction_rate_e7()
+            self.reaction_rate_e7()
             * self.number_density("beryllium_7")
             * self.number_density_electron()
             / self.mass_density
@@ -499,7 +518,7 @@ class ReactionRatePerUnitMass(ReactionRate):
         This is the third and final step within the PP 2 branch.
         """
         reaction_rate_per_unit_mass = (
-            self._reaction_rate_17_()
+            self.reaction_rate_17_()
             * self.number_density("hydrogen_1")
             * self.number_density("lithium_7")
             / self.mass_density
@@ -522,7 +541,7 @@ class ReactionRatePerUnitMass(ReactionRate):
         This is the second step within the PP3 branch.
         """
         reaction_rate_per_unit_mass = (
-            self._reaction_rate_17()
+            self.reaction_rate_17()
             * self.number_density("hydrogen_1")
             * self.number_density("beryllium_7")
             / self.mass_density
@@ -540,13 +559,19 @@ class ReactionRatePerUnitMass(ReactionRate):
         this is the fourth step of the CNO-cycle.
         """
         reaction_rate_per_unit_mass = (
-            self._reaction_rate_p14()
+            self.reaction_rate_p14()
             * self.number_density("hydrogen_1")
             * self.number_density("nitrogen_14")
             / self.mass_density
         )
         return reaction_rate_per_unit_mass
 
+    def print_reaction_rates_(self):
+        print(
+"""
+
+"""
+        )
 
 class EnergyProduction(ReactionRatePerUnitMass):
     """
@@ -572,33 +597,36 @@ class EnergyProduction(ReactionRatePerUnitMass):
     RELEASED_ENERGY_P15 = 4.966 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
 
     def __init__(self, mass_density=162000, temperature=15700000):
+        """
+        initializes an object of EnergyProduction.
+        """
         super().__init__(mass_density, temperature)
-        self.print_energy_production_rates()
+        #self.print_energy_production_rates()
 
     def energy_production_rate_pp_1(self):
         """
-        Computes the total energy production rate for the PP 1 branch,
-        by summing the contributions for the reaction rate per unit mass and
-        released energy products for the fusions. Two hydrogen 1
-        nuclei fusions and two hydrogen 1 and deuterium fusions per
-        required per fusion of helium 3 nuclei, as such, we assume that
-        the reaction rate per unit mass for the fusion of helium 3 are a
-        factor 2 smaller than the reaction rate per unit mass for the fusion
-        of hydrogen 1 and the fusion of hydrogen 1 and deuterium which
-        contribute to the energy production rate of PP 1.
+        Computes the    
         """
         return (
-            self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD
-        ) * self.reaction_rate_per_unit_mass_33() / 2 + self.RELEASED_ENERGY_33 * self.reaction_rate_per_unit_mass_33()
+            (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
+         * self.reaction_rate_per_unit_mass_33()*2 
+         + self.RELEASED_ENERGY_33 * self.reaction_rate_per_unit_mass_33()
+        )
 
     def energy_production_rate_pp_2(self):
         """
-        Computes the total energy production rate for the PP 2 branch.
         """
         return (
             (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
             * self.reaction_rate_per_unit_mass_34()
+
             + self.RELEASED_ENERGY_34 * self.reaction_rate_per_unit_mass_34()
+            *self.reaction_rate_per_unit_mass_e7()
+            / 
+            (
+            self.reaction_rate_per_unit_mass_e7() + self.reaction_rate_per_unit_mass_17()
+            )
+            #exclusive to PP 2 so we safe
             + self.RELEASED_ENERGY_E7 * self.reaction_rate_per_unit_mass_e7()
             + self.RELEASED_ENERGY_17_ * self.reaction_rate_per_unit_mass_17_()
         )
@@ -608,6 +636,12 @@ class EnergyProduction(ReactionRatePerUnitMass):
             (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
             * self.reaction_rate_per_unit_mass_34()
             + self.RELEASED_ENERGY_34 * self.reaction_rate_per_unit_mass_34()
+            *self.reaction_rate_per_unit_mass_17()
+            / 
+            (
+            self.reaction_rate_per_unit_mass_e7() + self.reaction_rate_per_unit_mass_17()
+            )
+            #exclusive to PP 2 so we safe
             + (
                 self.RELEASED_ENERGY_17
                 + self.RELEASED_ENERGY_8
@@ -616,15 +650,60 @@ class EnergyProduction(ReactionRatePerUnitMass):
             * self.reaction_rate_per_unit_mass_17()
         )
 
+    def energy_production_rate_cno(self):
+        return (
+            np.sum(
+            [
+            self.RELEASED_ENERGY_P12,
+            self.RELEASED_ENERGY_13,
+            self.RELEASED_ENERGY_P13,
+            self.RELEASED_ENERGY_P14,
+            self.RELEASED_ENERGY_15,
+            self.RELEASED_ENERGY_P15
+            ]
+            )
+            *self.reaction_rate_per_unit_mass_p14()
+        )
+    
+    def total_energy_production_rate(self):
+        return (
+            np.sum(
+            [
+            self.energy_production_rate_pp_1(),
+            self.energy_production_rate_pp_2(),
+            self.energy_production_rate_pp_3(),
+            self.energy_production_rate_cno()
+            ]
+            )
+        )
+
     def print_energy_production_rates(self):
         print(
             f"""
+Parameters: temperature = {self.temperature:.4g}, mass density = {self.mass_density:.4g}.
 Energy production rate for PP 1 branch: {self.energy_production_rate_pp_1():.4g}J
 Energy production rate for PP 2 branch: {self.energy_production_rate_pp_2():.4g}J
 Energy production rate for PP 3 branch: {self.energy_production_rate_pp_3():.4g}J
-"""
+Energy production rate for CNO-cycle: {self.energy_production_rate_cno():.4g}J
+Total energy production rate in the context of producing helium 4: {self.total_energy_production_rate()}
+            """
         )
-
+    def compute_energy_production_rate_arrays(self,temperature_array):
+        """
+        computes a energy production rate matrix of size N x 5, where N is the
+        # of temperatures in temperature array argument. this matrix is
+        normalized, such that the sum of column elements equal 1.
+        """
+        temperature_array_size = len(temperature_array) 
+        data = np.empty((temperature_array_size,5))
+        for i in range(temperature_array_size):
+            self.temperature9 = temperature_array[i]*1e-9
+            data[i,0] = self.energy_production_rate_pp_1()
+            data[i,1] = self.energy_production_rate_pp_2()
+            data[i,2] = self.energy_production_rate_pp_3()
+            data[i,3] = self.energy_production_rate_cno()
+            data[i,:] /= np.sum(data[i,:])
+        return data
 
 class SanityCheck(EnergyProduction):
     """
@@ -749,8 +828,6 @@ class SanityCheck(EnergyProduction):
         density of the solar core, and temperatures of that of the solar core,
         aswell as 10^8 Kelvin.
         """
-        temp = self.temperature9
-        temp2 = self.mass_density
         self.temperature9 = 1.57e7 * 1e-9
         self.mass_density = 1.62e5
         assert (
@@ -777,5 +854,25 @@ class SanityCheck(EnergyProduction):
         evaluate(3.45e4, self._sanity_check_p14(), 1e2)
 
 energies()
-instance = SanityCheck()
+SanityCheck()
 energies = EnergyProduction()
+energies.print_energy_production_rates()
+temperatures = np.logspace(4,9,1000)
+data = energies.compute_energy_production_rate_arrays(temperatures)
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.plot(temperatures, data[:, 0], linestyle='-', color='black', label='PP 1')
+ax.plot(temperatures, data[:, 1], linestyle='--', color='black', label='PP 2')
+ax.plot(temperatures, data[:, 2], linestyle=':', color='black', label='PP 3')
+ax.plot(temperatures, data[:, 3], linestyle='-.', color='black', label='CNO')
+ax.set_xlabel("Temperature [K]")
+ax.set_ylabel("Relative energy production")
+ax.set_xscale('log')
+ax.set_xticks([1e4, 1e5, 1e6, 1e7, 1e8, 1e9])  # set the x-ticks to follow the log scale
+ax.set_xlim(1e4,1e9)
+ax.legend(loc='upper right', bbox_to_anchor=(0.5, 1))
+plt.show()
+
+
+
+
+
