@@ -67,7 +67,7 @@ def energies():
     neutrino_energy_lost_pp0 = 0.265  # MeV
     neutrino_energy_lost_pp1 = 2 * neutrino_energy_lost_pp0
     neutrino_energy_lost_pp2 = 0.815 + neutrino_energy_lost_pp0  # MeV
-    neutrino_energy_lost_pp3 = 6.711 + neutrino_energy_lost_pp0   # MeV
+    neutrino_energy_lost_pp3 = 6.711 + neutrino_energy_lost_pp0  # MeV
     print(
         f"""
 PP1:
@@ -86,11 +86,6 @@ lost to neutrino: {neutrino_energy_lost_pp3:.4g}MeV,
 percentage of energy lost: {neutrino_energy_lost_pp3/energy_pp2_pp3()*1e2:.4g}%.
 """
     )
-
-
-energies()
-
-
 def evaluate(expected, computed, tolerance=1e-5):
     """
     Verifies if computations match their expected value, used exclusively
@@ -118,9 +113,9 @@ def convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro):
 
 class ReactionRate:
     """
-    Computes the reaction rate [reactions*m^3/s] for the different fusion 
+    Computes the reaction rate [reactions*m^3/s] for the different fusion
     processes found in the solar core, as part of the Proton Proton chain, in
-    addition to the CNO-cycle, as functions of temperature [K] and mass 
+    addition to the CNO-cycle, as functions of temperature [K] and mass
     density [kg/m^3].
     """
 
@@ -129,7 +124,7 @@ class ReactionRate:
     def __init__(self, mass_density=1.62e5, temperature=1.57e7):
         """
         Initializes a ReactionRate object for a given
-        The mass density [kg/m^3] and temperature [K]. 
+        The mass density [kg/m^3] and temperature [K].
         """
         self.mass_density = mass_density  # kg/m^3
         self.temperature = temperature  # K
@@ -305,6 +300,7 @@ class ReactionRatePerUnitMass(ReactionRate):
     Proton chain, in addition to the CNO-cycle, as functions of temperature
     [K] and mass density [kg/m^3].
     """
+
     ATOMIC_MASS_UNIT = 1.6605e-27  # kg
     MASS_FRACTIONS = {
         "hydrogen_1": 0.7,
@@ -314,6 +310,7 @@ class ReactionRatePerUnitMass(ReactionRate):
         "beryllium_7": 1e-7,
         "nitrogen_14": 1e-11,
     }
+
     def __init__(self, mass_density=162000, temperature=15700000):
         """
         Initializes a ReactionRatePerUnitMass object for a given mass density
@@ -443,10 +440,10 @@ class ReactionRatePerUnitMass(ReactionRate):
         """
         reaction_rate_per_unit_mass = (
             self._reaction_rate_33()
-                * self.number_density("helium_3") ** 2
-                / self.mass_density
-                / 2
-            )
+            * self.number_density("helium_3") ** 2
+            / self.mass_density
+            / 2
+        )
         if apply_scale_factor:
             reaction_rate_per_unit_mass *= self.scale_factor_helium_3()
         return reaction_rate_per_unit_mass
@@ -462,11 +459,11 @@ class ReactionRatePerUnitMass(ReactionRate):
         this is the first step within the PP 2 and PP 3 branches.
         """
         reaction_rate_per_unit_mass = (
-        self._reaction_rate_34()
-        * self.number_density("helium_3")
-        * self.number_density("helium_4")
-        / self.mass_density
-    )
+            self._reaction_rate_34()
+            * self.number_density("helium_3")
+            * self.number_density("helium_4")
+            / self.mass_density
+        )
         if apply_scale_factor:
             reaction_rate_per_unit_mass *= self.scale_factor_helium_3()
         return reaction_rate_per_unit_mass
@@ -550,55 +547,94 @@ class ReactionRatePerUnitMass(ReactionRate):
         )
         return reaction_rate_per_unit_mass
 
+
 class EnergyProduction(ReactionRatePerUnitMass):
     """
     computes the energy production rate for the PP branches, aswell as for the
     CNO-cycle.
     """
+
+    ELECTRON_TO_JOULE_CONVERSION_FACTOR = 1.6022e-19 * 1e6  # Joule/MeV
+    RELEASED_ENERGY_PP = 1.177 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_PD = 5.494 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_33 = 12.860 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_34 = 1.586 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_E7 = 0.049 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_17_ = 17.346 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_17 = 0.137 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_8 = 8.367 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_8_ = 2.995 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_P12 = 1.944 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_13 = 1.513 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_P13 = 7.551 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_P14 = 7.297 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_15 = 1.757 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+    RELEASED_ENERGY_P15 = 4.966 * ELECTRON_TO_JOULE_CONVERSION_FACTOR
+
     def __init__(self, mass_density=162000, temperature=15700000):
         super().__init__(mass_density, temperature)
+        self.print_energy_production_rates()
 
     def energy_production_rate_pp_1(self):
         """
         Computes the total energy production rate for the PP 1 branch,
         by summing the contributions for the reaction rate per unit mass and
-        released energy products for the fusions. Two hydrogen 1 
-        nuclei fusions and two hydrogen 1 and deuterium fusions per 
+        released energy products for the fusions. Two hydrogen 1
+        nuclei fusions and two hydrogen 1 and deuterium fusions per
         required per fusion of helium 3 nuclei, as such, we assume that
         the reaction rate per unit mass for the fusion of helium 3 are a
         factor 2 smaller than the reaction rate per unit mass for the fusion
         of hydrogen 1 and the fusion of hydrogen 1 and deuterium which
-        contribute to the energy production rate of PP 1. 
+        contribute to the energy production rate of PP 1.
         """
-        released_energy_pp = 1.177 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        released_energy_pd = 5.494 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        released_energy_pp0 = released_energy_pp + released_energy_pd
-        released_energy_33 = 12.860 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         return (
-            released_energy_pp0 * 2 * self.reaction_rate_per_unit_mass_33()
-            + released_energy_33 * self.reaction_rate_per_unit_mass_33()
-        )
+            self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD
+        ) * self.reaction_rate_per_unit_mass_33() / 2 + self.RELEASED_ENERGY_33 * self.reaction_rate_per_unit_mass_33()
 
     def energy_production_rate_pp_2(self):
-        pass
+        """
+        Computes the total energy production rate for the PP 2 branch.
+        """
+        return (
+            (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
+            * self.reaction_rate_per_unit_mass_34()
+            + self.RELEASED_ENERGY_34 * self.reaction_rate_per_unit_mass_34()
+            + self.RELEASED_ENERGY_E7 * self.reaction_rate_per_unit_mass_e7()
+            + self.RELEASED_ENERGY_17_ * self.reaction_rate_per_unit_mass_17_()
+        )
 
     def energy_production_rate_pp_3(self):
-        pass
+        return (
+            (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
+            * self.reaction_rate_per_unit_mass_34()
+            + self.RELEASED_ENERGY_34 * self.reaction_rate_per_unit_mass_34()
+            + (
+                self.RELEASED_ENERGY_17
+                + self.RELEASED_ENERGY_8
+                + self.RELEASED_ENERGY_8_
+            )
+            * self.reaction_rate_per_unit_mass_17()
+        )
 
     def print_energy_production_rates(self):
         print(
-f"""
-Energy production rate for PP 1 branch: {self.energy_production_rate_pp_1()}
+            f"""
+Energy production rate for PP 1 branch: {self.energy_production_rate_pp_1():.4g}J
+Energy production rate for PP 2 branch: {self.energy_production_rate_pp_2():.4g}J
+Energy production rate for PP 3 branch: {self.energy_production_rate_pp_3():.4g}J
 """
         )
 
-class SanityCheck(ReactionRatePerUnitMass):
+
+class SanityCheck(EnergyProduction):
     """
     Ensures the validity of reaction rates aswell as reaction rates per unit
     mass inside EnergyProduction by comparing their output with known values.
     """
+
     def __init__(self):
         super().__init__()
+        self.sanity_check()
 
     def _sanity_check_pp(self):
         """
@@ -608,14 +644,11 @@ class SanityCheck(ReactionRatePerUnitMass):
         Useless for computing the energy production rate for PP branches,
         but used within the sanity check.
         """
-        released_energy_pp = 1.177 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        released_energy_pd = 5.494 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        reaction_rate_per_unit_mass = (
+        return (
             self.reaction_rate_per_unit_mass_pp()
-            * (released_energy_pp + released_energy_pd)
+            * (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
             * self.mass_density
         )
-        return reaction_rate_per_unit_mass
 
     def _sanity_check_33(self):
         """
@@ -625,10 +658,9 @@ class SanityCheck(ReactionRatePerUnitMass):
         which it is produced.
         This is the first and only step within the PP 1 branch.
         """
-        released_energy_33 = 12.860 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         return (
             self.reaction_rate_per_unit_mass_33()
-            * released_energy_33
+            * self.RELEASED_ENERGY_33
             * self.mass_density
         )
 
@@ -640,10 +672,9 @@ class SanityCheck(ReactionRatePerUnitMass):
         which it is produced.
         This is the first step within the PP 2 and PP 3 branches.
         """
-        released_energy_34 = 1.586 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         return (
             self.reaction_rate_per_unit_mass_34()
-            * released_energy_34
+            * self.RELEASED_ENERGY_34
             * self.mass_density
         )
 
@@ -653,10 +684,9 @@ class SanityCheck(ReactionRatePerUnitMass):
         decay of beryllium 7, forming lithium 7.
         This is the second step within the PP 2 branch.
         """
-        released_energy_e7 = 0.049 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         return (
             self.reaction_rate_per_unit_mass_e7()
-            * released_energy_e7
+            * self.RELEASED_ENERGY_E7
             * self.mass_density
         )
 
@@ -666,10 +696,9 @@ class SanityCheck(ReactionRatePerUnitMass):
         fusion of lithium 7 and hydrogen 1, forming helium 4.
         This is the third and final step within the PP 2 branch.
         """
-        released_energy_17_ = 17.346 * self.MEV_TO_JOULE_CONVERSION_FACTOR
         return (
             self.reaction_rate_per_unit_mass_17_()
-            * released_energy_17_
+            * self.RELEASED_ENERGY_17_
             * self.mass_density
         )
 
@@ -681,15 +710,13 @@ class SanityCheck(ReactionRatePerUnitMass):
         to the the near instantaneous  decay of beryllium 8, forming helium 4
         nuclei, which are steps 2, 3 and 4 of the PP 3 branch, respectively.
         """
-        released_energy_17 = 0.137 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        released_energy_8 = 8.367 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        released_energy_8_ = 2.995 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        released_energy = sum(
-            [released_energy_17, released_energy_8, released_energy_8_]
+        sum_released_energies = np.sum(
+            [self.RELEASED_ENERGY_17, self.RELEASED_ENERGY_8, self.RELEASED_ENERGY_8_]
         )
         return (
-            self.reaction_rate_per_unit_mass_17() 
-            * released_energy * self.mass_density
+            self.reaction_rate_per_unit_mass_17()
+            * sum_released_energies
+            * self.mass_density
         )
 
     def _sanity_check_p14(self):
@@ -699,27 +726,22 @@ class SanityCheck(ReactionRatePerUnitMass):
         fusion of nitrogen 14 and hydrogen 1, as other fusions in the CNO-
         cycle are deemed near instantaneous.
         """
-        released_energy_p12 = 1.944 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        released_energy_13 = 1.513 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        released_energy_p13 = 7.551 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        released_energy_p14 = 7.297 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        released_energy_15 = 1.757 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        released_energy_p15 = 4.966 * self.MEV_TO_JOULE_CONVERSION_FACTOR
-        released_energy_cno = sum(
+        sum_released_energies = sum(
             [
-                released_energy_p12,
-                released_energy_13,
-                released_energy_p13,
-                released_energy_p14,
-                released_energy_15,
-                released_energy_p15,
+                self.RELEASED_ENERGY_P12,
+                self.RELEASED_ENERGY_13,
+                self.RELEASED_ENERGY_P13,
+                self.RELEASED_ENERGY_P14,
+                self.RELEASED_ENERGY_15,
+                self.RELEASED_ENERGY_P15,
             ]
         )
         return (
             self.reaction_rate_per_unit_mass_p14()
-            * released_energy_cno
+            * sum_released_energies
             * self.mass_density
         )
+
     def sanity_check(self):
         """
         Verifies the computation of the various energy production rates by
@@ -753,12 +775,7 @@ class SanityCheck(ReactionRatePerUnitMass):
         evaluate(4.35e-1, self._sanity_check_17_(), 1e-3)
         evaluate(1.26e5, self._sanity_check_17(), 1e3)
         evaluate(3.45e4, self._sanity_check_p14(), 1e2)
-        self.temperature9 = temp
-        self.mass_density = temp2
 
-
+energies()
 instance = SanityCheck()
-instance.sanity_check()
-
 energies = EnergyProduction()
-energies.print_energy_production_rates()
