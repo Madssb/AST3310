@@ -3,7 +3,6 @@ Script simulates the Energy production at the center of a star.
 """
 import numpy as np
 import matplotlib.pyplot as plt
-
 MASS = {  # u
     "hydrogen_1": 1.007825,
     "helium_3": 3.0160,
@@ -70,7 +69,6 @@ def energy_cno():
     output_mass = MASS["helium_4"]
     converted_mass = input_mass - output_mass
     return converted_mass_to_energy(converted_mass)
-
 
 def energies():
     """
@@ -242,7 +240,7 @@ class ReactionRate:
             )
         )
         upper_limit_cm_avogadro = 1.57e-7 / self.number_density_electron()
-        if self.temperature < 1e6:
+        if self.temperature9 < 1e6*1e-9:
             reaction_rate_m = convert_cm_to_m_reaction_rate(
                 upper_limit_cm_avogadro)
             return reaction_rate_m
@@ -324,6 +322,23 @@ class ReactionRate:
             reaction_rate_cm_avogadro)
         return reaction_rate_m
 
+    def gamow_peak(self,energy_array):
+        """
+        ikke peiling enda,
+        men energy array har noe med energien til atomene å gjøre, e.g. kinetisk
+        gir mening, og cross section. produktet av noe cross ection og reaction rate,
+        så idk, noe i den duren.
+        
+        k is the boltzmann constant (from revised SI)
+        """
+        k = 1.380649e-23 #J/K 
+        pi = 3.1416 
+        lambda_exponent = (
+            - energy_array / k / self.temperature
+        )
+        cross_section_exponent = (
+            
+        )
 
 class ReactionRatePerUnitMass(ReactionRate):
     """
@@ -446,11 +461,7 @@ class ReactionRatePerUnitMass(ReactionRate):
     def reaction_rate_per_unit_mass_pp(self):
         """
         Computes the reaction rate per unit mass [reactions/s/kg] for the
-        fusion of hydrogen 1 nuclei, forming deuterium. Assuming near
-        instantaneous fusion of hydrogen 1 and deuterium, this is also
-        the reaction rate per unit mass for hydrogen 1 and deuterium,
-        forming helium 3.
-
+        fusion of hydrogen 1 nuclei, forming deuterium. 
         this is the first step of the PP chain.
         """
         reaction_rate_per_unit_mass = (
@@ -580,7 +591,7 @@ class ReactionRatePerUnitMass(ReactionRate):
         )
         return reaction_rate_per_unit_mass
 
-    
+
 class EnergyProduction(ReactionRatePerUnitMass):
     """
     computes the energy production rate for the PP branches, aswell as for the
@@ -608,48 +619,100 @@ class EnergyProduction(ReactionRatePerUnitMass):
         """
         initializes an object of EnergyProduction.
         """
-        #super().__init__(mass_density, temperature)
-        #self.print_energy_production_rates()
+        super().__init__(mass_density, temperature)
 
     def energy_production_rate_pp_1(self):
         """
-        Computes the
+        Computes the energy production rate for the PP 1 branch.
+        
+        The fusion of a proton and deuterium is nearly instantaneous. As such,
+        it's reaction rate per unit mass is limited to, and therefore the same
+        as the reaction rate per unit mass for the fusion of hydrogen 1 nuclei.
+
+        For every iteration of the PP 1 branch, there are 2 iterations of PP 0
+        hence the factor 2r_33 for the released energy by PP 0.
+        
         """
         return (
             (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
-            * self.reaction_rate_per_unit_mass_33()*2
+            * self.reaction_rate_per_unit_mass_33() * 2
             + self.RELEASED_ENERGY_33 * self.reaction_rate_per_unit_mass_33()
         )
 
     def energy_production_rate_pp_2(self):
         """
+        Computes the energy production rate for the PP 2 branch.
+
+        The fusion of a proton and deuterium is nearly instantaneous. As such,
+        it's reaction rate per unit mass is limited to, and therefore the same
+        as the reaction rate per unit mass for the fusion of hydrogen 1 nuclei.
+
+        For the energy production rate for the PP 2 + PP 3, the contribution
+        from the fusion of protons, aswell as the fusion of protons and 
+        deuterium is (Q'_pp + Q'_pd)r_34. The contribution from the fusion of
+        helium 3 and helium 4 is Q'_34*r_34.
+        
+        The contributions are both shared among the PP 2 and PP 3 branches
+        through a weighted distribution, adjusting the reaction rates per unit
+        mass according to the demand in each branch. for PP 2 we add a factor
+        r_e7/(r_e7 + r_17)
         """
+        normalizing_factor = 1 / (
+                self.reaction_rate_per_unit_mass_e7() 
+                + self.reaction_rate_per_unit_mass_17()
+            )
         return (
             (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
             * self.reaction_rate_per_unit_mass_34()
+            * self.reaction_rate_per_unit_mass_e7()
+            * normalizing_factor
+
 
             + self.RELEASED_ENERGY_34 * self.reaction_rate_per_unit_mass_34()
             * self.reaction_rate_per_unit_mass_e7()
-            /
-            (
-                self.reaction_rate_per_unit_mass_e7() + self.reaction_rate_per_unit_mass_17()
-            )
+            * normalizing_factor
             #exclusive to PP 2 so we safe
             + self.RELEASED_ENERGY_E7 * self.reaction_rate_per_unit_mass_e7()
             + self.RELEASED_ENERGY_17_ * self.reaction_rate_per_unit_mass_17_()
         )
 
     def energy_production_rate_pp_3(self):
+        """
+        Computes the energy production rate for the PP 3 branch.
+
+        The fusion of a proton and deuterium is nearly instantaneous. As such,
+        it's reaction rate per unit mass is limited to, and therefore the same
+        as the reaction rate per unit mass for the fusion of hydrogen 1 nuclei.
+
+        For the energy production rate for the PP 2 + PP 3, the contribution
+        from the fusion of protons, aswell as the fusion of protons and 
+        deuterium is (Q'_pp + Q'_pd)r_34. The contribution from the fusion of
+        helium 3 and helium 4 is Q'_34*r_34.
+
+        The contributions are both shared among the PP 2 and PP 3 branches
+        through a weighted distribution, adjusting the reaction rates per unit
+        mass according to the demand in each branch. for PP 3 we add a factor
+        r_17/(r_e7 + r_17) 
+
+        The decay of boron 8, forming beryllium 8, along with the decay of
+        beryllium 8, forming 2 helium 4 nuclei are nearly instantaneous. As
+        such, their reaction rate per unit mass is  limited to, and therefore
+        the same as the reaction rate per unit mass for the fusion of hydrogen
+        1 and beryllium 7. 
+        """
+        normalizing_factor = 1 / (
+                self.reaction_rate_per_unit_mass_e7() 
+                + self.reaction_rate_per_unit_mass_17()
+            )
+        
         return (
             (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
             * self.reaction_rate_per_unit_mass_34()
+            * self.reaction_rate_per_unit_mass_17()
+            * normalizing_factor
             + self.RELEASED_ENERGY_34 * self.reaction_rate_per_unit_mass_34()
             * self.reaction_rate_per_unit_mass_17()
-            /
-            (
-                self.reaction_rate_per_unit_mass_e7() + self.reaction_rate_per_unit_mass_17()
-            )
-            #exclusive to PP 2 so we safe
+            * normalizing_factor
             + (
                 self.RELEASED_ENERGY_17
                 + self.RELEASED_ENERGY_8
@@ -659,6 +722,16 @@ class EnergyProduction(ReactionRatePerUnitMass):
         )
 
     def energy_production_rate_cno(self):
+        """
+        Compute the energy production rate for the CNO-cycle.
+
+        The reaction rate per unit mass for all fusions in the CNO-cycle
+        except for the fusion of nitrogen 14 and hydrogen 1 are near
+        instantaneous. As such, their reaction rate per unit mass is limited
+        to, and therefore the same as the reaction rate per unit mass for the
+        fusion of nitrogen 14 and hydrogen 1.
+        
+        """
         return (
             np.sum(
                 [
@@ -674,6 +747,10 @@ class EnergyProduction(ReactionRatePerUnitMass):
         )
 
     def total_energy_production_rate(self):
+        """
+        Compute the total energy production rate in the scope of helium 4
+        production.
+        """
         return (
             np.sum(
                 [
