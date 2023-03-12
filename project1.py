@@ -1,18 +1,30 @@
 """
-Script simulates the Energy production at the center of a star.
+Script simulates the energy production at the center of a star, in the 
+processes that generate helium 4. For now, energy production rates associated
+with excess helium 3 are not accounted for. 
 """
 import numpy as np
 import matplotlib.pyplot as plt
+# all masses are in atomic units [u], and sourced from https://ciaaw.org/
+# unless otherwise specified
 MASS = {  # u
-    "hydrogen_1": 1.007825,
-    "helium_3": 3.0160,
-    "helium_4": 4.0026,
+    "hydrogen_1": 1.0078250322,
+    "deuterium_2": 2.0141017781,
+    "helium_3": 3.016029322,
+    "helium_4": 4.0026032545,
+    "lithium_7": 7.01600344,
+    "beryllium_7": 7.0169287,  # Pubchem 2.1
+    "nitrogen_14": 14.003074004,
+    "carbon_12": 12,
+    "carbon_13": 13.003354835,
+    "nitrogen_15": 15.000108899,
+    "electron": 5.486e-4  # nist
 }
 
 
 def converted_mass_to_energy(mass_difference):
     """
-    applies the mass-energy equivalency principle E=mc^2 to convert mass
+    Applies the mass-energy equivalency principle E=mc^2 to convert mass
     defiency [u] into the corresponding energy [MeV], utilizing a conversion factor for
     atomic mass units to MeV.
     """
@@ -70,9 +82,10 @@ def energy_cno():
     converted_mass = input_mass - output_mass
     return converted_mass_to_energy(converted_mass)
 
+
 def energies():
     """
-    compute the energy gained from mass conversion per iterations for the PP
+    Compute the energy gained from mass conversion per iterations for the PP
     chains aswell as for the CNO-cycle. Compares this energy to the energy
     which is lost by neutrinos escaping. Also prints all of this
     """
@@ -83,6 +96,10 @@ def energies():
     neutrino_energy_lost_cno = 0.707 + 0.997
     print(
         f"""
+PP0:
+mass converted: {(3*MASS['hydrogen_1'] - MASS['helium_3']):.4g}u
+energy output: {energy_pp0():.4g}MeV
+
 PP1:
 Energy output: {energy_pp1():.4g}MeV,
 lost to neutrino: {neutrino_energy_lost_pp1:.4g}MeV,
@@ -120,7 +137,7 @@ def evaluate(expected, computed, tolerance=1e-5):
 
 def convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro):
     """
-    Converts the units of reaction rates from  [reactions*cm^3/s/mole]
+    Convert the units of reaction rates from  [reactions*cm^3/s/mole]
     to [reactions*m^3/s]. Applied inside reaction_rate_xx() methods within
     EnergyProduction, where xx denotes which process the reaction rate
     corresponds to.
@@ -134,7 +151,7 @@ def convert_cm_to_m_reaction_rate(reaction_rate_cm_avogadro):
 
 class ReactionRate:
     """
-    Computes the reaction rate [reactions*m^3/s] for the different fusion
+    Computes the reaction rate [reactions*m^3/s] for the fusion
     processes found in the solar core, as part of the Proton Proton chain, in
     addition to the CNO-cycle, as functions of temperature [K] and mass
     density [kg/m^3].
@@ -322,23 +339,6 @@ class ReactionRate:
             reaction_rate_cm_avogadro)
         return reaction_rate_m
 
-    def gamow_peak(self,energy_array):
-        """
-        ikke peiling enda,
-        men energy array har noe med energien til atomene å gjøre, e.g. kinetisk
-        gir mening, og cross section. produktet av noe cross ection og reaction rate,
-        så idk, noe i den duren.
-        
-        k is the boltzmann constant (from revised SI)
-        """
-        k = 1.380649e-23 #J/K 
-        pi = 3.1416 
-        lambda_exponent = (
-            - energy_array / k / self.temperature
-        )
-        cross_section_exponent = (
-            
-        )
 
 class ReactionRatePerUnitMass(ReactionRate):
     """
@@ -580,7 +580,7 @@ class ReactionRatePerUnitMass(ReactionRate):
         Computes the reaction rate per unit mass [reactions/s/kg] for the
         fusion of hydrogen 1 and nitrogen 14, forming oxygen 15.
         assuming all other reaction rates near instantaneous, this is the
-        reaction rate per unit mass for all reactions within the CNO cycle.
+        reaction rate per unit mass for all reactions within the CNO-cycle.
         this is the fourth step of the CNO-cycle.
         """
         reaction_rate_per_unit_mass = (
@@ -658,9 +658,9 @@ class EnergyProduction(ReactionRatePerUnitMass):
         r_e7/(r_e7 + r_17)
         """
         normalizing_factor = 1 / (
-                self.reaction_rate_per_unit_mass_e7() 
-                + self.reaction_rate_per_unit_mass_17()
-            )
+            self.reaction_rate_per_unit_mass_e7()
+            + self.reaction_rate_per_unit_mass_17()
+        )
         return (
             (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
             * self.reaction_rate_per_unit_mass_34()
@@ -701,10 +701,10 @@ class EnergyProduction(ReactionRatePerUnitMass):
         1 and beryllium 7. 
         """
         normalizing_factor = 1 / (
-                self.reaction_rate_per_unit_mass_e7() 
-                + self.reaction_rate_per_unit_mass_17()
-            )
-        
+            self.reaction_rate_per_unit_mass_e7()
+            + self.reaction_rate_per_unit_mass_17()
+        )
+
         return (
             (self.RELEASED_ENERGY_PP + self.RELEASED_ENERGY_PD)
             * self.reaction_rate_per_unit_mass_34()
@@ -888,7 +888,7 @@ class SanityCheck(EnergyProduction):
     def _sanity_check_p14(self):
         """
         computes the energy production rate per unit volume [J/m^3/s] for the
-        entire CNO cycle, gated by the reaction rate per unit mass for the
+        entire CNO-cycle, gated by the reaction rate per unit mass for the
         fusion of nitrogen 14 and hydrogen 1, as other fusions in the CNO-
         cycle are deemed near instantaneous.
         """
@@ -941,6 +941,175 @@ class SanityCheck(EnergyProduction):
         evaluate(3.45e4, self._sanity_check_p14(), 1e2)
 
 
+class GamowPeaks(ReactionRatePerUnitMass):
+    """
+    Compute gamow peaks for all processes in PP and CNO-cycles, excluding
+    decays, (i.e. fusions and electron captures). Gamow peaks make no sense
+    for processes which don't involve overcoming the coloumb barrier.
+    """
+
+    def __init__(self, energy_array=np.logspace(-17, -13, 1000), mass_density=162000, temperature=15700000):
+        super().__init__(mass_density, temperature)
+        self.energy_array = energy_array
+
+    def gamow_peak(self, nucleon_1, nucleon_2):
+        """ 
+        generalized gamow peak method for computing the gamow peaks for
+        the various processes in PP and CNO.
+        
+        k is the boltzmann constant (from revised SI)
+        e is the elementary charge (from revised SI)
+        eps_0 is the vacuum permittivity
+        h is Plancks constant.
+        """
+        k = 1.380649e-23  # J/K
+        e = 1.602176634e-19  # C
+        eps_0 = 8.8541878128e-13  # F/m
+        h = 6.62607015e-34
+        mass1_kg = MASS[nucleon_1]*self.ATOMIC_MASS_UNIT
+        mass2_kg = MASS[nucleon_2]*self.ATOMIC_MASS_UNIT
+        reduced_mass = (
+            mass1_kg*mass2_kg
+            / (mass1_kg + mass2_kg)
+        )
+        lambda_exponent = np.exp(
+            -self.energy_array / k / self.temperature
+        )
+        cross_section_exponent = np.exp(
+            -np.sqrt(reduced_mass/2/self.energy_array)
+            * int(nucleon_1.split("_")[1])
+            * int(nucleon_2.split("_")[1])
+            * e**2 * np.pi / eps_0 / h
+        )
+        probabilities = lambda_exponent*cross_section_exponent
+        normalizing_factor = np.sum(probabilities)
+        relative_probabilitis = probabilities/normalizing_factor
+        return relative_probabilitis
+
+    def gamow_peak_pp(self):
+        """
+        compute the gamow peak for the fusion of hydrogen 1 nuclei, i.e. the
+        first step of the PP cycle
+        """
+        return self.gamow_peak('hydrogen_1', 'hydrogen_1')
+
+    def gamow_peak_pd(self):
+        """
+        compute the gamow peak for the fusion of hydrogen 1 and deuterium,
+        i.e. the second step of the PP cycle.
+        """
+        return self.gamow_peak('hydrogen_1', 'deuterium_2')
+
+    def gamow_peak_33(self):
+        """
+        compute the gamow peak for the fusion of helium 3 nuclei, i.e.
+        the the first and only step of the PP 1 branch.
+        """
+        return self.gamow_peak('helium_3', 'helium_3')
+
+    def gamow_peak_34(self):
+        """
+        compute the gamow peak for the fusion of helium 3 and helium 4 nuclei,
+        the first step of the shared PP2/PP3 branch.
+        """
+        return self.gamow_peak('helium_3', 'helium_4')
+
+    def gamow_peak_17_(self):
+        """
+        compute the gamow peak for the fusion of hydrogen 1 and lithium 7,
+        i.e. the third and final step of the PP 2 branch.
+        """
+        return self.gamow_peak('hydrogen_1', 'lithium_7')
+
+    def gamow_peak_17(self):
+        """
+        compute the gamow peak for the fusion of hydrogen 1 and beryllium 7,
+        i.e. the second step of the PP 3 branch.
+        """
+        return self.gamow_peak('hydrogen_1', 'beryllium_7')
+
+    def gamow_peak_p12(self):
+        """
+        compute the gamow peak for the fusion of hydrogen 1 and carbon 12,
+        i.e. the first step in the CNO-cycle.
+        """
+        return self.gamow_peak('hydrogen_1', 'carbon_12')
+
+    def gamow_peak_p13(self):
+        """
+        compute the gamow peak for the fusion of hydrogen 1 and carbon 13,
+        i.e. the third step in the CNO-cycle.
+        """
+        return self.gamow_peak('hydrogen_1', 'carbon_13')
+
+    def gamow_peak_p14(self):
+        """
+        compute the gamow peak for the fusion of hydrogen 1 and nitrogen 14,
+        i.e. the fourth step of the CNO-cycle.
+        """
+        return self.gamow_peak('hydrogen_1', 'nitrogen_14')
+
+    def gamow_peak_p15(self):
+        """
+        compute the gamow peak for the fusion of hydrogen 1 and nitrogen 15,
+        i.e. the sixth and final step of the CNO-cycle.
+        """
+        return self.gamow_peak('hydrogen_1', 'nitrogen_15')
+
+    def plot_gamow(self):
+        fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(8, 6))
+        ax[0, 0].set_title("PP 0 & PP 1")
+        ax[0, 0].plot(self.energy_array, self.gamow_peak_pp(),
+                      linestyle='-', color='black', label='pp')
+        ax[0, 0].plot(self.energy_array, self.gamow_peak_pd(),
+                      linestyle='--', color='black', label='pd')
+        ax[0, 0].plot(self.energy_array, self.gamow_peak_33(),
+                      linestyle = ':', color='black', label='33')
+        ax[0, 0].legend()
+        ax[0, 0].set_xscale('log')
+        ax[0, 0].set_xticks([1e-17,1e-16,1e-15,1e-14,1e-13])
+        ax[0, 0].set_xlim(1e-17, 1e-13)
+        ax[0, 1].set_title("PP 2")
+        ax[0, 1].plot(self.energy_array, self.gamow_peak_34(),
+                      linestyle='-', color='black', label='34')
+        ax[0, 1].plot(self.energy_array, self.gamow_peak_17_(),
+                      linestyle='--', color='black', label="17'")
+        ax[0, 1].legend()
+        ax[0, 1].set_xscale('log')
+        ax[0, 1].set_xticks([1e-17,1e-16,1e-15,1e-14,1e-13])
+        ax[0, 1].set_xlim(1e-17, 1e-13)
+        ax[1, 0].set_title("PP 3")
+        ax[1, 0].plot(self.energy_array, self.gamow_peak_17(),
+                      color='black', label='17')
+        ax[1, 0].legend()
+        ax[1, 0].set_xscale('log')
+        ax[1, 0].set_xticks([1e-17,1e-16,1e-15,1e-14,1e-13])
+        ax[1, 0].set_xlim(1e-17, 1e-13)
+        ax[1, 1].set_title("CNO")
+        ax[1, 1].plot(self.energy_array, self.gamow_peak_p12(),
+                      linestyle='-', color='black', label='p12')
+        ax[1, 1].plot(self.energy_array, self.gamow_peak_p13(),
+                      linestyle='--', color='black', label='p13')
+        ax[1, 1].plot(self.energy_array, self.gamow_peak_p14(),
+                      linestyle=':', color='black', label='p14')
+        ax[1, 1].plot(self.energy_array, self.gamow_peak_p15(),
+                      linestyle='-.', color='black', label='p15')
+        ax[1, 1].legend()
+        ax[1, 1].set_xscale('log')
+        ax[1, 1].set_xticks([1e-14,1e-13])
+        ax[1, 1].set_xlim(1e-14, 1e-13)
+        # Create a "parent" subplot that spans all other subplots
+        ax = fig.add_subplot(111, frameon=False)
+        ax.tick_params(labelcolor='none', top=False,
+                       bottom=False, left=False, right=False)
+        # Set the x-label for the parent subplot)
+        # Add some space between the parent subplot and the other subplots
+        plt.subplots_adjust(hspace=0.4)
+        ax.set_xlabel("Energy [J]")
+        ax.set_ylabel("Relative probability")
+        plt.savefig('gamow_peaks.pdf')
+
+
 energies()
 SanityCheck()
 energies = EnergyProduction()
@@ -959,4 +1128,7 @@ ax.set_xscale('log')
 ax.set_xticks([1e4, 1e5, 1e6, 1e7, 1e8, 1e9])
 ax.set_xlim(1e4, 1e9)
 ax.legend(loc='upper right', bbox_to_anchor=(0.5, 1))
-plt.show()
+plt.savefig("energy_production_rates.pdf")
+
+gamow = GamowPeaks()
+gamow.plot_gamow()
