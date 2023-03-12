@@ -1057,6 +1057,9 @@ class GamowPeaks(ReactionRatePerUnitMass):
         return self.gamow_peak('hydrogen_1', 'nitrogen_15')
 
     def plot_gamow(self):
+        """
+        plot all computed gamow peaks curves.
+        """
         fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(8, 6))
         ax[0, 0].set_title("PP 0 & PP 1")
         ax[0, 0].plot(self.energy_array, self.gamow_peak_pp(),
@@ -1109,6 +1112,29 @@ class GamowPeaks(ReactionRatePerUnitMass):
         ax.set_ylabel("Relative probability")
         plt.savefig('gamow_peaks.pdf')
 
+    def gamow_max(self):
+        """
+        find and print the energy corresponding to the gamow peak.
+        """
+        print(
+f"""
+Gamow peak peaks:
+pp: {self.energy_array[np.argmax(self.gamow_peak_pp())]:.4g}J
+pd: {self.energy_array[np.argmax(self.gamow_peak_pd())]:.4g}J
+33: {self.energy_array[np.argmax(self.gamow_peak_33())]:.4g}J
+34: {self.energy_array[np.argmax(self.gamow_peak_34())]:.4g}J
+17_: {self.energy_array[np.argmax(self.gamow_peak_17_())]:.4g}J
+17: {self.energy_array[np.argmax(self.gamow_peak_17())]:.4g}J
+p12: {self.energy_array[np.argmax(self.gamow_peak_p12())]:.4g}J
+p13: {self.energy_array[np.argmax(self.gamow_peak_p13())]:.4g}J
+p14: {self.energy_array[np.argmax(self.gamow_peak_p14())]:.4g}J
+p15: {self.energy_array[np.argmax(self.gamow_peak_p15())]:.4g}J
+
+34 in eV:
+{self.energy_array[np.argmax(self.gamow_peak_34())]/1.602e-19:.4g}eV
+
+"""
+        )
 
 energies()
 SanityCheck()
@@ -1132,3 +1158,4 @@ plt.savefig("energy_production_rates.pdf")
 
 gamow = GamowPeaks()
 gamow.plot_gamow()
+gamow.gamow_max()
