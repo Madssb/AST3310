@@ -324,7 +324,7 @@ def convective_flux(mass, radial_position, mass_density, temperature, pressure, 
         mass (float): Mass inside volume for sphere with radius equal to
             radial position, centered at center of sun-like star [kg].
         temperature (float): Temperature [K].
-    
+
     Returns:
 
     """
@@ -420,8 +420,8 @@ class EnergyTransport:
 
         Args:
             self (EnergyTransport): Instance of EnergyTransport.
-        
-        
+
+
         """
         mass = self.parameters[0]
         radial_position = self.parameters[1]
