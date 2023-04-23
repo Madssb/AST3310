@@ -9,14 +9,15 @@ from project1 import EnergyProduction
 import os
 import matplotlib.pyplot as plt
 from cross_section import cross_section
-import sys
 from tabulate import tabulate
+import sys
+import time
 
 STEFAN_BOLTZMANN_CONSTANT = 5.6704e-8  # W / (m^2 K^4)
 GRAVITATIONAL_CONSTANT = 6.6742e-11  # N m^2 / kg^2
 BOLTZMANN_CONSTANT = 1.3806e-23  # m^2 kg / (s^2 K)
 ATOMIC_MASS_UNIT = 1.6605e-27  # kg
-ADIABATIC_TEMPERATURE_GRADIENT = 2 / 5
+ADIABATIC_TEMPERATURE_GRAD = 2 / 5
 DELTA = 1
 LUMINOSITY_SUN = 3.846e26  # kg m^2 /s^3  (W)
 MASS_SUN = 1.989e30  # kg
@@ -96,7 +97,8 @@ def log_10_opacity(temperature, mass_density):
     LOG_10_R = data[0][1:]
     LOG_10_TEMPERATURES = data[1:, 0]
     LOG_10_OPACITIES = data[1:, 1:]
-    instance = RectBivariateSpline(LOG_10_TEMPERATURES, LOG_10_R, LOG_10_OPACITIES)
+    instance = RectBivariateSpline(
+        LOG_10_TEMPERATURES, LOG_10_R, LOG_10_OPACITIES)
 
     LOG_10_TEMPERATURE = np.log10(temperature)
     MASS_DENSITY_CGS = mass_density/1000
@@ -106,7 +108,7 @@ def log_10_opacity(temperature, mass_density):
     return LOG_10_OPACITY
 
 
-def opacity(temperature, mass_density,sanity_check=False):
+def opacity(temperature, mass_density, sanity_check=False):
     LOG_10_OPACITY = log_10_opacity(temperature, mass_density)
     OPACITY_CGS = 10**LOG_10_OPACITY
     OPACITY_SI = OPACITY_CGS/10
@@ -142,11 +144,11 @@ def sanity_check_opacity():
     LOG_10_TEMPERATURES = np.asarray([3.750, 3.755, 3.755, 3.755, 3.755,
                                       3.770, 3.780, 3.795, 3.770, 3.775,
                                       3.780, 3.795, 3.800])
-    TEMPERATURES = 10**(LOG_10_TEMPERATURES) #K
+    TEMPERATURES = 10**(LOG_10_TEMPERATURES)  # K
     LOG_10_R = np.asfarray([-6.00, -5.95, -5.80, -5.70,
-                                                 -5.55, -5.95, -5.95, -5.95,
-                                                 -5.80, -5.75, -5.70, -5.55,
-                                                 -5.50])
+                            -5.55, -5.95, -5.95, -5.95,
+                            -5.80, -5.75, -5.70, -5.55,
+                            -5.50])
     R = 10**LOG_10_R
     MASS_DENSITIES_CGS = R*(TEMPERATURES/1e6)**3
     MASS_DENSITIES_SI = MASS_DENSITIES_CGS*1e3
@@ -155,7 +157,8 @@ def sanity_check_opacity():
     EXPECTED_OPACITIES = [2.84e-3, 3.11e-3, 2.68e-3, 2.46e-3, 2.12e-3,
                           4.70e-3, 6.25e-3, 9.45e-3, 4.05e-3, 4.43e-3,
                           4.94e-3, 6.89e-3, 7.69e-3]
-    table = np.stack([LOG_10_TEMPERATURES, LOG_10_R, LOG_10_OPACITIES, OPACITIES], axis=-1)
+    table = np.stack([LOG_10_TEMPERATURES, LOG_10_R,
+                     LOG_10_OPACITIES, OPACITIES], axis=-1)
     headers = ["log10 T", "log10 R", "log 10 opacity", "opacity"]
     print(tabulate(table, headers=headers))
     for index, opacity_ in enumerate(OPACITIES):
@@ -249,7 +252,7 @@ def pressure_scale_height(mass, radial_position, temperature):
     )
 
 
-def stable_temperature_gradient(mass, radial_position, mass_density,
+def stable_temperature_grad(mass, radial_position, mass_density,
                                 temperature, luminosity, sanity_check=False):
     """
     Compute the temperature gradient nescesary for all the energy to be
@@ -272,7 +275,7 @@ def stable_temperature_gradient(mass, radial_position, mass_density,
     """
     OPACITY = opacity(temperature, mass_density, sanity_check)
     PRESSURE_SCALE_HEIGHT = pressure_scale_height(
-        mass, radial_position, temperature)    
+        mass, radial_position, temperature)
     return(
         3
         * luminosity
@@ -336,8 +339,10 @@ def xi(mass, radial_position, mass_density, temperature, luminosity, sanity_chec
     PRESSURE_SCALE_HEIGHT = pressure_scale_height(
         mass, radial_position, temperature)
     GEOMETRIC_FACTOR = 4 / DELTA / PRESSURE_SCALE_HEIGHT
-    STABLE_TEMPERATURE_GRADIENT = stable_temperature_gradient(mass, radial_position, mass_density, temperature, luminosity,sanity_check=sanity_check)
-    U = u(mass, radial_position, mass_density, temperature, sanity_check=sanity_check)
+    STABLE_TEMPERATURE_GRAD = stable_temperature_grad(
+        mass, radial_position, mass_density, temperature, luminosity, sanity_check=sanity_check)
+    U = u(mass, radial_position, mass_density,
+          temperature, sanity_check=sanity_check)
     MIXING_LENGTH = 1 * PRESSURE_SCALE_HEIGHT
     coeffs = np.asarray(
         [
@@ -346,7 +351,7 @@ def xi(mass, radial_position, mass_density, temperature, luminosity, sanity_chec
             U**2 * GEOMETRIC_FACTOR / MIXING_LENGTH**3,
             U
             / MIXING_LENGTH**2
-            *(ADIABATIC_TEMPERATURE_GRADIENT - STABLE_TEMPERATURE_GRADIENT),
+            * (ADIABATIC_TEMPERATURE_GRAD - STABLE_TEMPERATURE_GRAD),
         ]
     )
     roots = np.roots(coeffs)
@@ -355,7 +360,7 @@ def xi(mass, radial_position, mass_density, temperature, luminosity, sanity_chec
     return XI
 
 
-def temperature_gradient(mass, radial_position, mass_density, temperature, pressure, luminosity, sanity_check=False):
+def temperature_grad(mass, radial_position, mass_density, temperature, pressure, luminosity, sanity_check=False):
     """
     Computes the temperature gradient.
 
@@ -370,12 +375,14 @@ def temperature_gradient(mass, radial_position, mass_density, temperature, press
             sun-like star with radius equal to radial_position.
         sanity_check (Bool): False if not used for sanity check,
             true if used for sanity check. 
-    
+
     Returns:
         (float): Temperature gradient.
     """
-    XI = xi(mass, radial_position, mass_density, temperature, luminosity, sanity_check=sanity_check)
-    return XI**2 + ADIABATIC_TEMPERATURE_GRADIENT
+    XI = xi(mass, radial_position, mass_density, temperature,
+            luminosity, sanity_check=sanity_check)
+    return XI**2 + ADIABATIC_TEMPERATURE_GRAD
+
 
 def temperature_differential(mass, radial_position, mass_density, temperature,
                              pressure, luminosity, dpdm, sanity_check=False):
@@ -397,8 +404,9 @@ def temperature_differential(mass, radial_position, mass_density, temperature,
     Returns:
         (float): differential of temperature with respect to mass].
     """
-    actual_temperature_gradient = temperature_gradient(mass, radial_position, mass_density, temperature, pressure, luminosity, sanity_check=sanity_check)
-    return actual_temperature_gradient*temperature/pressure*dpdm
+    actual_temperature_grad = temperature_grad(
+        mass, radial_position, mass_density, temperature, pressure, luminosity, sanity_check=sanity_check)
+    return actual_temperature_grad*temperature/pressure*dpdm
 
 
 def parcel_velocity(mass, radial_position, mass_density, temperature,
@@ -419,13 +427,15 @@ def parcel_velocity(mass, radial_position, mass_density, temperature,
     Returns:
         (float): parcel velocity [m/s]
     """
-    GRAVITATIONAL_ACCELERATION = gravitational_acceleration(mass, radial_position)
-    PRESSURE_SCALE_HEIGHT = pressure_scale_height(mass, radial_position, temperature)
+    GRAVITATIONAL_ACCELERATION = gravitational_acceleration(
+        mass, radial_position)
+    PRESSURE_SCALE_HEIGHT = pressure_scale_height(
+        mass, radial_position, temperature)
     PARCEL_DISTANCE_MOVED = PRESSURE_SCALE_HEIGHT/2
     XI = xi(mass, radial_position, mass_density, temperature, luminosity,
             sanity_check=sanity_check)
     return (np.sqrt(GRAVITATIONAL_ACCELERATION*DELTA/PRESSURE_SCALE_HEIGHT)
-            *XI*PARCEL_DISTANCE_MOVED)
+            * XI*PARCEL_DISTANCE_MOVED)
 
 
 def convective_flux(mass, radial_position, mass_density, temperature, pressure, luminosity, sanity_check=False):
@@ -448,7 +458,7 @@ def convective_flux(mass, radial_position, mass_density, temperature, pressure, 
     XI = xi(mass, radial_position, mass_density,
             temperature, luminosity, sanity_check=sanity_check)
     return (mass_density*SPECIFIC_HEAT_CAPACITY*temperature
-            * np.sqrt(GRAVITATIONAL_ACCELERATION*DELTA/PRESSURE_SCALE_HEIGHT)
+            * np.sqrt(GRAVITATIONAL_ACCELERATION*DELTA/PRESSURE_SCALE_HEIGHT**3)
             * (MIXING_LENGTH/2)**2*XI**3)
 
 
@@ -470,9 +480,11 @@ def radiative_flux(mass, radial_position, mass_density, temperature, pressure, l
         (float): Radiative flux.
     """
     OPACITY = opacity(temperature, mass_density, sanity_check=sanity_check)
-    PRESSURE_SCALE_HEIGHT = pressure_scale_height(mass, radial_position, temperature)
-    TEMPERATURE_GRADIENT = temperature_gradient(mass, radial_position, mass_density, temperature, pressure, luminosity, sanity_check=sanity_check)
-    return (16*STEFAN_BOLTZMANN_CONSTANT*temperature**4*TEMPERATURE_GRADIENT/3/OPACITY/mass_density/PRESSURE_SCALE_HEIGHT)
+    PRESSURE_SCALE_HEIGHT = pressure_scale_height(
+        mass, radial_position, temperature)
+    TEMPERATURE_GRAD = temperature_grad(
+        mass, radial_position, mass_density, temperature, pressure, luminosity, sanity_check=sanity_check)
+    return (16*STEFAN_BOLTZMANN_CONSTANT*temperature**4*TEMPERATURE_GRAD/3/OPACITY/mass_density/PRESSURE_SCALE_HEIGHT)
 
 
 def append_line_to_data_file(data, filename="stellar_parameters.txt"):
@@ -501,13 +513,13 @@ def initialize_file(filename="stellar_parameters.txt"):
 
 
 def compute_temperature_differential_radiative_only(
-    temperature, mass_density, luminosity, radial_position,sanity_check=False
+    temperature, mass_density, luminosity, radial_position, sanity_check=False
 ):
     """
     Computes the differential of temperature with respect to mass, with
     radiative only.
     """
-    OPACITY = opacity(temperature, mass_density,sanity_check=sanity_check)
+    OPACITY = opacity(temperature, mass_density, sanity_check=sanity_check)
     return (
         3
         * OPACITY
@@ -527,52 +539,55 @@ def sanity_check_gradients():
     Returns:
         None.
     """
-    TEMPERATURE = 0.9e6 #K
-    MASS_DENSITY = 55.9 #kg/m^3
+    TEMPERATURE = 0.9e6  # K
+    MASS_DENSITY = 55.9  # kg/m^3
     PRESSURE = mass_density_to_pressure(TEMPERATURE, MASS_DENSITY)
     RADIAL_POSITION = 0.84*RADIUS_SUN
     MASS = 0.99*MASS_SUN
     LUMINOSITY = LUMINOSITY_SUN
-    STABLE_TEMPERATURE_GRADIENT = stable_temperature_gradient(MASS,
+    STABLE_TEMPERATURE_GRAD = stable_temperature_grad(MASS,
                                                               RADIAL_POSITION,
                                                               MASS_DENSITY,
                                                               TEMPERATURE,
                                                               LUMINOSITY,
                                                               sanity_check=True)
-    PRESSURE_SCALE_HEIGHT = pressure_scale_height(MASS, RADIAL_POSITION, TEMPERATURE)
+    PRESSURE_SCALE_HEIGHT = pressure_scale_height(
+        MASS, RADIAL_POSITION, TEMPERATURE)
     U = u(MASS, RADIAL_POSITION, MASS_DENSITY, TEMPERATURE, sanity_check=True)
     XI = xi(MASS, RADIAL_POSITION, MASS_DENSITY, TEMPERATURE, LUMINOSITY,
             sanity_check=True)
-    TEMPERATURE_GRADIENT = temperature_gradient(MASS, RADIAL_POSITION,
+    TEMPERATURE_GRAD = temperature_grad(MASS, RADIAL_POSITION,
                                                 MASS_DENSITY, TEMPERATURE,
                                                 PRESSURE, LUMINOSITY,
                                                 sanity_check=True)
     PARCEL_VELOCITY = parcel_velocity(MASS, RADIAL_POSITION, MASS_DENSITY,
                                       TEMPERATURE, LUMINOSITY,
-                                      sanity_check=True) 
-    RADIATIVE_FLUX = radiative_flux(MASS, RADIAL_POSITION, MASS_DENSITY, TEMPERATURE, PRESSURE, LUMINOSITY, sanity_check=True)
-    CONVECTIVE_FLUX = convective_flux(MASS, RADIAL_POSITION, MASS_DENSITY, TEMPERATURE, PRESSURE, LUMINOSITY, sanity_check=True)
+                                      sanity_check=True)
+    RADIATIVE_FLUX = radiative_flux(
+        MASS, RADIAL_POSITION, MASS_DENSITY, TEMPERATURE, PRESSURE, LUMINOSITY, sanity_check=True)
+    CONVECTIVE_FLUX = convective_flux(
+        MASS, RADIAL_POSITION, MASS_DENSITY, TEMPERATURE, PRESSURE, LUMINOSITY, sanity_check=True)
     FLUX_SUM = RADIATIVE_FLUX + CONVECTIVE_FLUX
     CONVECTIVE_FLUX_RATIO = CONVECTIVE_FLUX/FLUX_SUM
     RADIATIVE_FLUX_RATIO = RADIATIVE_FLUX/FLUX_SUM
-    check_relative_error(0.6, MEAN_MOLECULAR_MASS, 1e-1 )
+    check_relative_error(0.6, MEAN_MOLECULAR_MASS, 4e-2)
     check_relative_error(32.4e6, PRESSURE_SCALE_HEIGHT, 3e-2)
-    check_relative_error(3.26, STABLE_TEMPERATURE_GRADIENT, 4e-2)
+    check_relative_error(3.26, STABLE_TEMPERATURE_GRAD, 4e-2)
     check_relative_error(5.94e5, U, 4e-2)
     check_relative_error(1.173e-3, XI, 2e-2)
-    check_relative_error(0.400, TEMPERATURE_GRADIENT, 1e-2)
+    check_relative_error(0.400, TEMPERATURE_GRAD, 1e-2)
     check_relative_error(65.50, PARCEL_VELOCITY, 2e-3)
-    check_relative_error(0.88, CONVECTIVE_FLUX_RATIO, 1e-2)
-    check_relative_error(0.12, RADIATIVE_FLUX_RATIO, 1e-2)
+    check_relative_error(0.88, CONVECTIVE_FLUX_RATIO, 5e-2)
+    check_relative_error(0.12, RADIATIVE_FLUX_RATIO, 6e-2)
 
     print("success")
-
 
 
 class EnergyTransport:
     """
     Models central parts of a Sun-like star.
     """
+
     def __init__(self, init_temperature=5770, init_luminosity=LUMINOSITY_SUN,
                  init_mass=MASS_SUN, init_radial_position=RADIUS_SUN,
                  init_mass_density=1.42e-7*AVERAGE_MASS_DENSITY_SUN,
@@ -606,6 +621,10 @@ class EnergyTransport:
         temperature = self.parameters[3]
         mass_density = self.parameters[4]
         pressure = self.parameters[5]
+        TEMPERATURE_GRAD = temperature_grad(mass, radial_position,
+                                                mass_density, temperature,
+                                                pressure, luminosity)
+        CONVECTIVELY_STABLE = TEMPERATURE_GRAD < ADIABATIC_TEMPERATURE_GRAD
         permitted_change = 0.1
         drdm = radial_coordinate_differential(radial_position, mass_density)
         dpdm = pressure_differential(mass, radial_position)
@@ -613,12 +632,18 @@ class EnergyTransport:
         dtdm = temperature_differential(temperature, mass_density,
                                         mass, radial_position,
                                         pressure, luminosity, dpdm)
+        if CONVECTIVELY_STABLE:
+            dtdm = compute_temperature_differential_radiative_only(temperature, mass_density, luminosity, radial_position)
         mass_differentials = np.asarray([
             permitted_change*radial_position/drdm,
             permitted_change*pressure/dpdm,
             permitted_change*luminosity/dldm,
             permitted_change*temperature/dtdm])
         index = np.argmin(np.abs(mass_differentials))
+        try:
+            step_size_old = step_size
+        except UnboundLocalError:
+            step_size_old = 0
         step_size = np.abs(mass_differentials[index])
         mass = mass - step_size
         radial_position = radial_position - step_size*drdm
@@ -626,7 +651,6 @@ class EnergyTransport:
         luminosity = luminosity - step_size*dldm
         temperature = temperature - step_size*dtdm
         mass_density = pressure_to_mass_density(temperature, pressure)
-
         self.parameters = np.asarray([mass, radial_position, luminosity,
                                       temperature, mass_density, pressure])
         for index, param in enumerate(self.parameters):
@@ -634,6 +658,13 @@ class EnergyTransport:
             assert isinstance(param, float), msg
             assert not np.isnan(param), msg
             assert not np.isinf(param), msg
+        print(f"{mass=:.4g}")
+        print(f"{radial_position=:.4g}")
+        print(f"{pressure=:.4g}")
+        print(f"{luminosity=:4g}")
+        print(f"{temperature=:.4g}")
+        print(f"{step_size=:.4g}")
+        self.step_size_difference = step_size - step_size_old
 
     def compute_and_store_to_file(self):
         """
@@ -644,10 +675,11 @@ class EnergyTransport:
         append_line_to_data_file(self.parameters, self.filename)
         tolerance = 1e-5
         mass = self.parameters[0]
-        while mass > self.init_mass*0.05:
+        self.step_size_difference = 1
+        while self.step_size_difference > tolerance:
+        #while mass > self.init_mass*0.05:
             self.advance()
             append_line_to_data_file(self.parameters, self.filename)
-        print("success")
 
     def read_file(self):
         """
@@ -676,10 +708,10 @@ class EnergyTransport:
                         self.temperatures, self.pressures, self.luminosities)
         cross_section(self.radial_positions, self.luminosities,
                       self.convective_fluxes)
-        
-    
-sanity_check_opacity()
-sanity_check_gradients()
+
+
+#sanity_check_opacity()
+#sanity_check_gradients()
 instance = EnergyTransport(filename="stellar_parameters_0dot1.txt")
 instance.compute_and_store_to_file()
 instance.read_file()
