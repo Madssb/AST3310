@@ -1,0 +1,15 @@
+    Args:
+        mass (float): mass inside sphere of radius radial_position, with mass
+            density of sun-like star.
+        radial_position (float): distance from center of sun-like star.
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star.
+        temperature (float): local temperature at radial_position, inside
+            sun-like star.
+        pressure (float): Local pressure inside at radial_position,
+            inside sun-like star.
+        luminosity (float): luminosity emitted by mass inside sphere of radius
+            radial_position, with mass density of sun-like star.sphere with
+            radius equal to radial position, consisting of sun-like star.
+        sanity_check (Bool): False if not used for sanity check,
+            true if used for sanity check. 

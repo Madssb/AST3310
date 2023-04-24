@@ -10,8 +10,7 @@ import os
 import matplotlib.pyplot as plt
 from cross_section import cross_section
 from tabulate import tabulate
-import sys
-import time
+
 
 STEFAN_BOLTZMANN_CONSTANT = 5.6704e-8  # W / (m^2 K^4)
 GRAVITATIONAL_CONSTANT = 6.6742e-11  # N m^2 / kg^2
@@ -23,6 +22,7 @@ LUMINOSITY_SUN = 3.846e26  # kg m^2 /s^3  (W)
 MASS_SUN = 1.989e30  # kg
 RADIUS_SUN = 6.96e8  # m
 AVERAGE_MASS_DENSITY_SUN = 1.408e3  # kg/m^3
+SPEED_OF_LIGHT = 2.9979e8 #m/s
 
 
 def mean_molecular_mass():
@@ -67,10 +67,10 @@ def radial_coordinate_differential(radial_position, mass_density):
     for a point at a given radial position within a sun-like star.
 
     Args:
-        radial_position (float): The radial position of the point relative  to
-            the center of some sun-like star [m].
-        mass_density (float): The local mass density at the point within the
-        star, measured in units of mass per unit volume.
+        radial_position (float): distance from center of sun-like star [m].
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star [kg/m^3].
+
 
     Returns:
         float: The differential of the radial coordinate with respect to mass,
@@ -79,14 +79,16 @@ def radial_coordinate_differential(radial_position, mass_density):
     return 1 / (4 * np.pi * radial_position**2 * mass_density)
 
 
-def log_10_opacity(temperature, mass_density):
+def log_10_opacity(mass_density, temperature):
     """
     Computes opacity as functions of R and
     temperature using data from "opacity.txt".
 
     Args:
-        temperature (float) Temperature in Kelvin.
-        mass_density (float) Mass density in kg/m^3.
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star [kg/m^3].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
 
     Returns:
         opacity (float) Opacity [m^2/kg] of sun-like star, as a function
@@ -109,7 +111,7 @@ def log_10_opacity(temperature, mass_density):
 
 
 def opacity(temperature, mass_density, sanity_check=False):
-    LOG_10_OPACITY = log_10_opacity(temperature, mass_density)
+    LOG_10_OPACITY = log_10_opacity(mass_density, temperature)
     OPACITY_CGS = 10**LOG_10_OPACITY
     OPACITY_SI = OPACITY_CGS/10
     if sanity_check:
@@ -165,19 +167,38 @@ def sanity_check_opacity():
         check_relative_error(EXPECTED_OPACITIES[index], opacity_, tol=6e-2)
 
 
+def radiative_pressure(temperature):
+    """
+    Computes the radiative pressure:
+    
+    Args:
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
+
+    Returns:
+        (float): Radiative pressure.
+    """
+    RADIATION_DENSITY_CONSTANT = 4*STEFAN_BOLTZMANN_CONSTANT/SPEED_OF_LIGHT
+    return RADIATION_DENSITY_CONSTANT*temperature**4 
+
+
 def pressure_to_mass_density(temperature, pressure):
     """
-    Compute the mass density given some temperature and pressure.
+    Compute the mass density.
+
     Args:
-        temperature (float): The temperature [K].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
         pressure (float): The pressure in units of Pa. [N/m^2]
 
     Returns:
         (float) mass density in units of kg/m^3
     """
+    RADIATIVE_PRESSURE = radiative_pressure(temperature)
+    GAS_PRESSURE = pressure - RADIATIVE_PRESSURE
     return (
         ATOMIC_MASS_UNIT*MEAN_MOLECULAR_MASS/BOLTZMANN_CONSTANT/temperature
-        * pressure
+        * GAS_PRESSURE
     )
 
 
@@ -186,15 +207,18 @@ def mass_density_to_pressure(temperature, mass_density):
     Compute the pressure given some temperature and mass density.
 
     Args:
-        temperature (float): The temperature [K]
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
         mass_density (float): The mass density [kg/m^3]
     returns:
         (float) pressure [?]
     """
-    return (
+    RADIATIVE_PRESSURE = radiative_pressure(temperature)
+    GAS_PRESSURE = (
         BOLTZMANN_CONSTANT*temperature/MEAN_MOLECULAR_MASS/ATOMIC_MASS_UNIT
         * mass_density
     )
+    return RADIATIVE_PRESSURE + GAS_PRESSURE
 
 
 def pressure_differential(mass, radial_position):
@@ -202,9 +226,9 @@ def pressure_differential(mass, radial_position):
     Computes the differential of pressure with respect to mass.
 
     Args:
-        mass (float): Mass inside volume V.
-        radial_position (float): The radial position relative to center of a
-            sun-like star. [m]
+        mass (float): mass inside sphere of radius radial_position, with mass
+            density of sun-like star [kg].
+        radial_position (float): distance from center of sun-like star [m].
 
     Returns:
         (float): Differential of pressure with respect to mass.
@@ -212,12 +236,14 @@ def pressure_differential(mass, radial_position):
     return -GRAVITATIONAL_CONSTANT * mass / 4 / np.pi / radial_position**4
 
 
-def total_energy_production_rate(temperature, mass_density):
+def total_energy_production_rate(mass_density, temperature):
     """
     Computes the total energy production rate. (dL/dm)
     Args:
-        temperature (float): Temperature [K].
-        mass_density (float): Mass density [kg/m^3],
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star [kg/m^3].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
 
     returns:
         (float): The total energy production rate. []
@@ -230,6 +256,11 @@ def gravitational_acceleration(mass, radial_position):
     """"
     Computes gravitational acceleration
 
+    Args:
+        mass (float): mass inside sphere of radius radial_position, with mass
+            density of sun-like star [kg].
+        radial_position (float): distance from center of sun-like star [m].
+
     Returns:
         (float): Gravitational acceleration [m/s^2]
     """
@@ -239,7 +270,13 @@ def gravitational_acceleration(mass, radial_position):
 def pressure_scale_height(mass, radial_position, temperature):
     """
     Computes pressure scale height.
+
     Args:
+        mass (float): mass inside sphere of radius radial_position, with mass
+            density of sun-like star [kg].
+        radial_position (float): distance from center of sun-like star [m].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
 
     Returns:
         (float): Pressure scale height. 
@@ -259,19 +296,22 @@ def stable_temperature_grad(mass, radial_position, mass_density,
     carried by radiation.
 
     Args:
-        mass (float): mass inside volume contained in sphere inside sun-like
-            star with radius equal to radial_postion,
-        radial_position (float): distance from center of sun-like star.
-        mass_density (float): local mass density inside sun-like star.
-        temperature (float): local temperature inside sun-like star.
-        luminosity (float): luminosity emitted by volume contained inside
-            sun-like star with radius equal to radial_position.
+        mass (float): mass inside sphere of radius radial_position, with mass
+            density of sun-like star [kg].
+        radial_position (float): distance from center of sun-like star [m].
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star [kg/m^3].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
+        luminosity (float): luminosity emitted by mass inside sphere of radius
+            radial_position, with mass density of sun-like star.sphere with
+            radius equal to radial position, consisting of sun-like star.
         sanity_check (Bool): False if not used for sanity check,
             true if used for sanity check. 
 
     Returns:
         (float): The temperature gradient nescesary for all the energy to be
-    carried by radiation.
+            carried by radiation.
     """
     OPACITY = opacity(temperature, mass_density, sanity_check)
     PRESSURE_SCALE_HEIGHT = pressure_scale_height(
@@ -293,14 +333,20 @@ def stable_temperature_grad(mass, radial_position, mass_density,
 def u(mass, radial_position, mass_density, temperature, sanity_check=False):
     """
     Compute unnamed but useful quantity U.
+
     Args:
-        mass (float): mass inside volume contained in sphere inside sun-like
-            star with radius equal to radial_postion,
-        radial_position (float): distance from center of sun-like star.
-        mass_density (float): local mass density inside sun-like star.
-        temperature (float): local temperature inside sun-like star.
+        mass (float): mass inside sphere of radius radial_position, with mass
+            density of sun-like star [kg].
+        radial_position (float): distance from center of sun-like star [m].
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star [kg/m^3].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
         sanity_check (Bool): False if not used for sanity check,
             true if used for sanity check. 
+
+    Returns:
+        (float): unnamed but useful quantity U.
     """
     OPACITY = opacity(temperature, mass_density, sanity_check)
     GRAVITATIONAL_ACCELERATION = gravitational_acceleration(
@@ -324,18 +370,22 @@ def xi(mass, radial_position, mass_density, temperature, luminosity, sanity_chec
     computes xi.
 
     Args:
-        mass (float): mass inside volume contained in sphere inside sun-like
-            star with radius equal to radial_postion,
-        radial_position (float): distance from center of sun-like star.
-        mass_density (float): local mass density inside sun-like star.
-        temperature (float): local temperature inside sun-like star.
-        luminosity (float): luminosity emitted by volume contained inside
-            sun-like star with radius equal to radial_position.
+        mass (float): mass inside sphere of radius radial_position, with mass
+            density of sun-like star [kg].
+        radial_position (float): distance from center of sun-like star [m].
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star [kg/m^3].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
+        luminosity (float): luminosity emitted by mass inside sphere of radius
+            radial_position, with mass density of sun-like star.sphere with
+            radius equal to radial position, consisting of sun-like star.
         sanity_check (Bool): False if not used for sanity check,
             true if used for sanity check. 
     Returns:
         (float): xi.
     """
+
     PRESSURE_SCALE_HEIGHT = pressure_scale_height(
         mass, radial_position, temperature)
     GEOMETRIC_FACTOR = 4 / DELTA / PRESSURE_SCALE_HEIGHT
@@ -346,7 +396,7 @@ def xi(mass, radial_position, mass_density, temperature, luminosity, sanity_chec
     MIXING_LENGTH = 1 * PRESSURE_SCALE_HEIGHT
     coeffs = np.asarray(
         [
-            1,
+            np.ones_like(mass),
             U / MIXING_LENGTH**2,
             U**2 * GEOMETRIC_FACTOR / MIXING_LENGTH**3,
             U
@@ -354,25 +404,40 @@ def xi(mass, radial_position, mass_density, temperature, luminosity, sanity_chec
             * (ADIABATIC_TEMPERATURE_GRAD - STABLE_TEMPERATURE_GRAD),
         ]
     )
-    roots = np.roots(coeffs)
-    index = np.where(roots.imag == 0)[0][0]
-    XI = roots[index].real
-    return XI
+    xis = np.empty_like(PRESSURE_SCALE_HEIGHT)
+    try:
+        for i in range(len(PRESSURE_SCALE_HEIGHT)): 
+            print(f"{i=}") 
+            if np.isnan(U[i]) or np.isinf(U[i]):
+                print(f"{U[i]=}")
+            roots = np.roots(coeffs[:,i])
+            index = np.where(roots.imag == 0)[0][0]
+            XI = roots[index].real
+            xis[i] = XI
+        return xis
+    except TypeError:
+        roots = np.roots(coeffs)
+        index = np.where(roots.imag == 0)[0][0]
+        XI = roots[index].real
+        return XI
 
 
-def temperature_grad(mass, radial_position, mass_density, temperature, pressure, luminosity, sanity_check=False):
+
+def temperature_grad(mass, radial_position, mass_density, temperature, luminosity, sanity_check=False):
     """
     Computes the temperature gradient.
 
     Args:
-        mass (float): mass inside volume contained in sphere inside sun-like
-            star with radius equal to radial_postion,
-        radial_position (float): Distance from center of sun-like star.
-        mass_density (float): Local mass density inside sun-like star.
-        temperature (float): Local temperature inside sun-like star.
-        pressure (float): Local pressure inside sun-like star.
-        luminosity (float): luminosity emitted by volume contained inside
-            sun-like star with radius equal to radial_position.
+        mass (float): mass inside sphere of radius radial_position, with mass
+            density of sun-like star [kg].
+        radial_position (float): distance from center of sun-like star [m].
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star [kg/m^3].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
+        luminosity (float): luminosity emitted by mass inside sphere of radius
+            radial_position, with mass density of sun-like star.sphere with
+            radius equal to radial position, consisting of sun-like star.
         sanity_check (Bool): False if not used for sanity check,
             true if used for sanity check. 
 
@@ -384,44 +449,22 @@ def temperature_grad(mass, radial_position, mass_density, temperature, pressure,
     return XI**2 + ADIABATIC_TEMPERATURE_GRAD
 
 
-def temperature_differential(mass, radial_position, mass_density, temperature,
-                             pressure, luminosity, dpdm, sanity_check=False):
-    """
-    computes the differential of temperature with respect to mass.
-
-    Args:
-        mass (float): mass inside volume contained in sphere inside sun-like
-            star with radius equal to radial_postion,
-        radial_position (float): Distance from center of sun-like star.
-        mass_density (float): Local mass density inside sun-like star.
-        temperature (float): Local temperature inside sun-like star.
-        pressure (float): Local pressure inside sun-like star.
-        luminosity (float): luminosity emitted by volume contained inside
-            sun-like star with radius equal to radial_position.
-        dpdm: (float): the differential of pressure with respect to mass.
-        sanity_check (Bool): False if not used for sanity check,
-            true if used for sanity check. 
-    Returns:
-        (float): differential of temperature with respect to mass].
-    """
-    actual_temperature_grad = temperature_grad(
-        mass, radial_position, mass_density, temperature, pressure, luminosity, sanity_check=sanity_check)
-    return actual_temperature_grad*temperature/pressure*dpdm
-
-
 def parcel_velocity(mass, radial_position, mass_density, temperature,
                     luminosity, sanity_check=False):
     """
     Compute the velocity of parcel.
+
     Args:
-        mass (float): mass inside volume contained in sphere inside sun-like
-            star with radius equal to radial_postion,
-        radial_position (float): Distance from center of sun-like star.
-        mass_density (float): Local mass density inside sun-like star.
-        temperature (float): Local temperature inside sun-like star.
-        pressure (float): Local pressure inside sun-like star.
-        luminosity (float): luminosity emitted by volume contained inside
-            sun-like star with radius equal to radial_position.
+        mass (float): mass inside sphere of radius radial_position, with mass
+            density of sun-like star [kg].
+        radial_position (float): distance from center of sun-like star [m].
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star [kg/m^3].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
+        luminosity (float): luminosity emitted by mass inside sphere of radius
+            radial_position, with mass density of sun-like star.sphere with
+            radius equal to radial position, consisting of sun-like star.
         sanity_check (Bool): False if not used for sanity check,
             true if used for sanity check. 
     Returns:
@@ -438,17 +481,26 @@ def parcel_velocity(mass, radial_position, mass_density, temperature,
             * XI*PARCEL_DISTANCE_MOVED)
 
 
-def convective_flux(mass, radial_position, mass_density, temperature, pressure, luminosity, sanity_check=False):
+def convective_flux(mass, radial_position, mass_density, temperature, luminosity, sanity_check=False):
     """
     Computes convective flux.
 
     Args:
-        mass (float): Mass inside volume for sphere with radius equal to
-            radial position, centered at center of sun-like star [kg].
-        temperature (float): Temperature [K].
+        mass (float): mass inside sphere of radius radial_position, with mass
+            density of sun-like star [kg].
+        radial_position (float): distance from center of sun-like star [m].
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star [kg/m^3].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
+        luminosity (float): luminosity emitted by mass inside sphere of radius
+            radial_position, with mass density of sun-like star.sphere with
+            radius equal to radial position, consisting of sun-like star.
+        sanity_check (Bool): False if not used for sanity check,
+            true if used for sanity check. 
 
     Returns:
-
+        (float): The convective flux.
     """
     GRAVITATIONAL_ACCELERATION = gravitational_acceleration(
         mass, radial_position)
@@ -462,18 +514,21 @@ def convective_flux(mass, radial_position, mass_density, temperature, pressure, 
             * (MIXING_LENGTH/2)**2*XI**3)
 
 
-def radiative_flux(mass, radial_position, mass_density, temperature, pressure, luminosity, sanity_check=False):
+def radiative_flux(mass, radial_position, mass_density, temperature, luminosity, sanity_check=False):
     """
     Computes radiative flux.
+
     Args:
-        mass (float): mass inside volume contained in sphere inside sun-like
-            star with radius equal to radial_postion,
-        radial_position (float): Distance from center of sun-like star.
-        mass_density (float): Local mass density inside sun-like star.
-        temperature (float): Local temperature inside sun-like star.
-        pressure (float): Local pressure inside sun-like star.
-        luminosity (float): luminosity emitted by volume contained inside
-            sun-like star with radius equal to radial_position.
+        mass (float): mass inside sphere of radius radial_position, with mass
+            density of sun-like star [kg].
+        radial_position (float): distance from center of sun-like star [m].
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star [kg/m^3].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
+        luminosity (float): luminosity emitted by mass inside sphere of radius
+            radial_position, with mass density of sun-like star.sphere with
+            radius equal to radial position, consisting of sun-like star.
         sanity_check (Bool): False if not used for sanity check,
             true if used for sanity check. 
     Returns:
@@ -483,7 +538,7 @@ def radiative_flux(mass, radial_position, mass_density, temperature, pressure, l
     PRESSURE_SCALE_HEIGHT = pressure_scale_height(
         mass, radial_position, temperature)
     TEMPERATURE_GRAD = temperature_grad(
-        mass, radial_position, mass_density, temperature, pressure, luminosity, sanity_check=sanity_check)
+        mass, radial_position, mass_density, temperature, luminosity, sanity_check=sanity_check)
     return (16*STEFAN_BOLTZMANN_CONSTANT*temperature**4*TEMPERATURE_GRAD/3/OPACITY/mass_density/PRESSURE_SCALE_HEIGHT)
 
 
@@ -512,12 +567,57 @@ def initialize_file(filename="stellar_parameters.txt"):
             f.truncate(0)
 
 
+def temperature_differential(mass, radial_position, mass_density, temperature,
+                             pressure, luminosity, dpdm, sanity_check=False):
+    """
+    computes the differential of temperature with respect to mass.
+
+    Args:
+        mass (float): mass inside sphere of radius radial_position, with mass
+            density of sun-like star [kg].
+        radial_position (float): distance from center of sun-like star [m].
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star [kg/m^3].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
+        pressure (float): Local pressure inside at radial_position,
+            inside sun-like star.
+        luminosity (float): luminosity emitted by mass inside sphere of radius
+            radial_position, with mass density of sun-like star.sphere with
+            radius equal to radial position, consisting of sun-like star.
+        dpdm (float): The differential of pressure with respect to mass.
+        sanity_check (Bool): False if not used for sanity check,
+            true if used for sanity check. 
+    Returns:
+        (float): The differential of temperature with respect to mass.
+    """
+    actual_temperature_grad = temperature_grad(
+        mass, radial_position, mass_density, temperature, luminosity, sanity_check=sanity_check)
+    return actual_temperature_grad*temperature/pressure*dpdm
+
+
 def compute_temperature_differential_radiative_only(
-    temperature, mass_density, luminosity, radial_position, sanity_check=False
+    radial_position, mass_density, temperature, luminosity, sanity_check=False
 ):
     """
-    Computes the differential of temperature with respect to mass, with
-    radiative only.
+    Computes the differential of temperature with respect to mass, for
+        convectively stable mass shell.
+
+    Args:
+        radial_position (float): distance from center of sun-like star [m].
+        mass_density (float): local mass density at radial_position, inside
+            sun-like star [kg/m^3].
+        temperature (float): local temperature at radial_position, inside
+            sun-like star [K].
+        luminosity (float): luminosity emitted by mass inside sphere of radius
+            radial_position, with mass density of sun-like star.sphere with
+            radius equal to radial position, consisting of sun-like star.
+        sanity_check (Bool): False if not used for sanity check,
+            true if used for sanity check. 
+
+    Returns:
+        (float): the differential of temperature with respect to mass, for
+            convectively stable mass shell.
     """
     OPACITY = opacity(temperature, mass_density, sanity_check=sanity_check)
     return (
@@ -558,28 +658,27 @@ def sanity_check_gradients():
             sanity_check=True)
     TEMPERATURE_GRAD = temperature_grad(MASS, RADIAL_POSITION,
                                                 MASS_DENSITY, TEMPERATURE,
-                                                PRESSURE, LUMINOSITY,
+                                                LUMINOSITY,
                                                 sanity_check=True)
     PARCEL_VELOCITY = parcel_velocity(MASS, RADIAL_POSITION, MASS_DENSITY,
                                       TEMPERATURE, LUMINOSITY,
                                       sanity_check=True)
     RADIATIVE_FLUX = radiative_flux(
-        MASS, RADIAL_POSITION, MASS_DENSITY, TEMPERATURE, PRESSURE, LUMINOSITY, sanity_check=True)
+        MASS, RADIAL_POSITION, MASS_DENSITY, TEMPERATURE, LUMINOSITY, sanity_check=True)
     CONVECTIVE_FLUX = convective_flux(
-        MASS, RADIAL_POSITION, MASS_DENSITY, TEMPERATURE, PRESSURE, LUMINOSITY, sanity_check=True)
+        MASS, RADIAL_POSITION, MASS_DENSITY, TEMPERATURE, LUMINOSITY, sanity_check=True)
     FLUX_SUM = RADIATIVE_FLUX + CONVECTIVE_FLUX
     CONVECTIVE_FLUX_RATIO = CONVECTIVE_FLUX/FLUX_SUM
     RADIATIVE_FLUX_RATIO = RADIATIVE_FLUX/FLUX_SUM
     check_relative_error(0.6, MEAN_MOLECULAR_MASS, 4e-2)
     check_relative_error(32.4e6, PRESSURE_SCALE_HEIGHT, 3e-2)
     check_relative_error(3.26, STABLE_TEMPERATURE_GRAD, 4e-2)
-    check_relative_error(5.94e5, U, 4e-2)
+    check_relative_error(5.94e5, U, 2e-2)
     check_relative_error(1.173e-3, XI, 2e-2)
     check_relative_error(0.400, TEMPERATURE_GRAD, 1e-2)
     check_relative_error(65.50, PARCEL_VELOCITY, 2e-3)
     check_relative_error(0.88, CONVECTIVE_FLUX_RATIO, 5e-2)
     check_relative_error(0.12, RADIATIVE_FLUX_RATIO, 6e-2)
-
     print("success")
 
 
@@ -600,7 +699,7 @@ class EnergyTransport:
                                                  init_mass_density)
         self.init_radial_position = init_radial_position
         self.init_mass = init_mass
-
+        print(f"{total_energy_production_rate(init_mass_density, init_temperature)=}")
         self.parameters = np.asarray([init_mass, init_radial_position,
                                       init_luminosity, init_temperature,
                                       init_mass_density, init_pressure])
@@ -623,17 +722,21 @@ class EnergyTransport:
         pressure = self.parameters[5]
         TEMPERATURE_GRAD = temperature_grad(mass, radial_position,
                                                 mass_density, temperature,
-                                                pressure, luminosity)
+                                                luminosity)
         CONVECTIVELY_STABLE = TEMPERATURE_GRAD < ADIABATIC_TEMPERATURE_GRAD
+        print(f"{TEMPERATURE_GRAD=}")
         permitted_change = 0.1
         drdm = radial_coordinate_differential(radial_position, mass_density)
         dpdm = pressure_differential(mass, radial_position)
-        dldm = total_energy_production_rate(temperature, mass_density)
+        dldm = total_energy_production_rate(mass_density, temperature)
         dtdm = temperature_differential(temperature, mass_density,
                                         mass, radial_position,
                                         pressure, luminosity, dpdm)
         if CONVECTIVELY_STABLE:
-            dtdm = compute_temperature_differential_radiative_only(temperature, mass_density, luminosity, radial_position)
+            print("convectively stable")
+            dtdm = compute_temperature_differential_radiative_only(radial_position, mass_density, temperature, luminosity)
+        else: 
+            print("convectively unstable")
         mass_differentials = np.asarray([
             permitted_change*radial_position/drdm,
             permitted_change*pressure/dpdm,
@@ -658,12 +761,12 @@ class EnergyTransport:
             assert isinstance(param, float), msg
             assert not np.isnan(param), msg
             assert not np.isinf(param), msg
-        print(f"{mass=:.4g}")
+        """print(f"{mass=:.4g}")
         print(f"{radial_position=:.4g}")
         print(f"{pressure=:.4g}")
         print(f"{luminosity=:4g}")
         print(f"{temperature=:.4g}")
-        print(f"{step_size=:.4g}")
+        print(f"{step_size=:.4g}")"""
         self.step_size_difference = step_size - step_size_old
 
     def compute_and_store_to_file(self):
@@ -676,10 +779,10 @@ class EnergyTransport:
         tolerance = 1e-5
         mass = self.parameters[0]
         self.step_size_difference = 1
-        while self.step_size_difference > tolerance:
-        #while mass > self.init_mass*0.05:
+        while mass > self.init_mass*0.05:
             self.advance()
             append_line_to_data_file(self.parameters, self.filename)
+            print(f"mass : {self.parameters[0]} kg")
 
     def read_file(self):
         """
@@ -689,31 +792,50 @@ class EnergyTransport:
         data = np.loadtxt(self.filename, delimiter=",")
         self.masses = data[:, 0]
         self.radial_positions = data[:, 1]
+        self.relative_radial_positions = self.radial_positions/self.init_radial_position
         self.luminosities = data[:, 2]
         self.temperatures = data[:, 3]
         self.mass_densities = data[:, 4]
         self.pressures = data[:, 5]
+        print(f"{self.radial_positions[-1]=}")
 
     def plot(self):
-        fig, ax = plt.subplots()
-        ax.plot(self.masses, self.radial_positions, label="radius")
-        ax.set_xlabel("mass [kg]")
-        ax.set_ylabel("radial position [m]")
-        ax.set_xscale("log")
-        ax.set_yscale("log")
+        fig, ax = plt.subplots(2, 2)
+
+        ax[0, 0].plot(self.relative_radial_positions, self.masses, label="radius")
+        ax[0, 0].set_title("Radius vs. Mass")
+        ax[0, 0].set_xlabel("Mass [kg]")
+        ax[0, 0].set_ylabel("Radius [m]")
+
+        ax[0, 1].plot(self.relative_radial_positions, self.luminosities, label="luminosity")
+        ax[0, 1].set_title("Luminosity vs. Mass")
+        ax[0, 1].set_xlabel("Radius [m]")
+        ax[0, 1].set_ylabel("Luminosity [W]")
+
+        ax[1, 0].plot(self.relative_radial_positions, self.temperatures, label="temperature")
+        ax[1, 0].set_title("Temperature vs. Mass")
+        ax[1, 0].set_xlabel("Radius [m]")
+        ax[1, 0].set_ylabel("Temperature [K]")
+
+        ax[1, 1].plot(self.relative_radial_positions, self.mass_densities, label="mass density")
+        ax[1, 1].set_title("Mass Density vs. Mass")
+        ax[1, 1].set_xlabel("Radius [m]")
+        ax[1, 1].set_ylabel("Mass Density [kg/m^3]")
+
+        # Add a title for the whole figure
+        fig.suptitle("Numerical Integral Results")
         plt.show()
 
     def plot_cross_section(self):
-        convective_flux(self.masses, self.radial_positions, self.mass_densities,
-                        self.temperatures, self.pressures, self.luminosities)
+        self.convective_fluxes = convective_flux(self.masses, self.radial_positions,  self.mass_densities, self.temperatures, self.luminosities)
         cross_section(self.radial_positions, self.luminosities,
                       self.convective_fluxes)
 
 
 #sanity_check_opacity()
-#sanity_check_gradients()
+sanity_check_gradients()
 instance = EnergyTransport(filename="stellar_parameters_0dot1.txt")
 instance.compute_and_store_to_file()
 instance.read_file()
-instance.plot_cross_section()
-instance.plot()
+#instance.plot()
+#instance.plot_cross_section()
