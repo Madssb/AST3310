@@ -107,6 +107,17 @@ def log_10_opacity(mass_density, temperature):
     R = MASS_DENSITY_CGS/(temperature/1e6)**3
     LOG_10_R = np.log10(R)
     LOG_10_OPACITY = instance.ev(LOG_10_TEMPERATURE, LOG_10_R)
+    assert np.isfinite(mass_density)
+    assert np.isfinite(temperature)
+    assert np.isfinite(MASS_DENSITY_CGS)
+    assert np.isfinite(R)
+    try:
+        assert np.isfinite(LOG_10_R)
+    except AssertionError:
+        print(f"{R=:.4g}")
+        print(f"{LOG_10_R=:.4g}")
+        raise ValueError
+    assert np.isfinite(LOG_10_OPACITY)
     return LOG_10_OPACITY
 
 
@@ -116,6 +127,9 @@ def opacity(temperature, mass_density, sanity_check=False):
     OPACITY_SI = OPACITY_CGS/10
     if sanity_check:
         return 3.98
+    assert np.isfinite(LOG_10_OPACITY)
+    assert np.isfinite(OPACITY_CGS)
+    assert np.isfinite(OPACITY_SI)
     return OPACITY_SI
 
 
@@ -178,7 +192,7 @@ def radiative_pressure(temperature):
     Returns:
         (float): Radiative pressure.
     """
-    RADIATION_DENSITY_CONSTANT = 4*STEFAN_BOLTZMANN_CONSTANT/SPEED_OF_LIGHT
+    RADIATION_DENSITY_CONSTANT = 4*STEFAN_BOLTZMANN_CONSTANT/SPEED_OF_LIGHT/3
     return RADIATION_DENSITY_CONSTANT*temperature**4 
 
 
@@ -198,7 +212,7 @@ def pressure_to_mass_density(temperature, pressure):
     GAS_PRESSURE = pressure - RADIATIVE_PRESSURE
     return (
         ATOMIC_MASS_UNIT*MEAN_MOLECULAR_MASS/BOLTZMANN_CONSTANT/temperature
-        * GAS_PRESSURE
+        * np.abs(GAS_PRESSURE)
     )
 
 
@@ -353,6 +367,9 @@ def u(mass, radial_position, mass_density, temperature, sanity_check=False):
         mass, radial_position)
     PRESSURE_SCALE_HEIGHT = pressure_scale_height(
         mass, radial_position, temperature)
+    assert np.isfinite(OPACITY)
+    assert np.isfinite(GRAVITATIONAL_ACCELERATION)
+    assert np.isfinite(PRESSURE_SCALE_HEIGHT)
     return (
         64
         * STEFAN_BOLTZMANN_CONSTANT
@@ -416,6 +433,9 @@ def xi(mass, radial_position, mass_density, temperature, luminosity, sanity_chec
             xis[i] = XI
         return xis
     except TypeError:
+        assert np.isfinite(U)
+        for i, coeff in enumerate(coeffs):
+            assert np.isfinite(coeff), f"coeff[{i}] = {coeff}."
         roots = np.roots(coeffs)
         index = np.where(roots.imag == 0)[0][0]
         XI = roots[index].real
@@ -699,7 +719,10 @@ class EnergyTransport:
                                                  init_mass_density)
         self.init_radial_position = init_radial_position
         self.init_mass = init_mass
-        print(f"{total_energy_production_rate(init_mass_density, init_temperature)=}")
+        self.init_temperature = init_temperature
+        self.init_pressure = init_pressure
+        self.init_mass_density = init_mass_density
+        self.init_luminosity = init_luminosity
         self.parameters = np.asarray([init_mass, init_radial_position,
                                       init_luminosity, init_temperature,
                                       init_mass_density, init_pressure])
@@ -720,11 +743,13 @@ class EnergyTransport:
         temperature = self.parameters[3]
         mass_density = self.parameters[4]
         pressure = self.parameters[5]
+        assert mass_density > 0
+        assert temperature > 0
         TEMPERATURE_GRAD = temperature_grad(mass, radial_position,
                                                 mass_density, temperature,
                                                 luminosity)
         CONVECTIVELY_STABLE = TEMPERATURE_GRAD < ADIABATIC_TEMPERATURE_GRAD
-        print(f"{TEMPERATURE_GRAD=}")
+        #print(f"{TEMPERATURE_GRAD=}")
         permitted_change = 0.1
         drdm = radial_coordinate_differential(radial_position, mass_density)
         dpdm = pressure_differential(mass, radial_position)
@@ -733,10 +758,11 @@ class EnergyTransport:
                                         mass, radial_position,
                                         pressure, luminosity, dpdm)
         if CONVECTIVELY_STABLE:
-            print("convectively stable")
+            #print("convectively stable")
             dtdm = compute_temperature_differential_radiative_only(radial_position, mass_density, temperature, luminosity)
         else: 
-            print("convectively unstable")
+            #print("convectively unstable")
+            pass
         mass_differentials = np.asarray([
             permitted_change*radial_position/drdm,
             permitted_change*pressure/dpdm,
@@ -761,12 +787,7 @@ class EnergyTransport:
             assert isinstance(param, float), msg
             assert not np.isnan(param), msg
             assert not np.isinf(param), msg
-        """print(f"{mass=:.4g}")
-        print(f"{radial_position=:.4g}")
-        print(f"{pressure=:.4g}")
-        print(f"{luminosity=:4g}")
-        print(f"{temperature=:.4g}")
-        print(f"{step_size=:.4g}")"""
+        print(f"m={mass:.4g} r={radial_position:.4g} P = {pressure:.4g} L = {luminosity:.4g} T = {temperature:.4g}")
         self.step_size_difference = step_size - step_size_old
 
     def compute_and_store_to_file(self):
@@ -782,7 +803,7 @@ class EnergyTransport:
         while mass > self.init_mass*0.05:
             self.advance()
             append_line_to_data_file(self.parameters, self.filename)
-            print(f"mass : {self.parameters[0]} kg")
+            #print(f"mass : {self.parameters[0]} kg")
 
     def read_file(self):
         """
@@ -792,38 +813,41 @@ class EnergyTransport:
         data = np.loadtxt(self.filename, delimiter=",")
         self.masses = data[:, 0]
         self.radial_positions = data[:, 1]
-        self.relative_radial_positions = self.radial_positions/self.init_radial_position
         self.luminosities = data[:, 2]
         self.temperatures = data[:, 3]
         self.mass_densities = data[:, 4]
         self.pressures = data[:, 5]
-        print(f"{self.radial_positions[-1]=}")
+        #print(f"{self.radial_positions[-1]=}")
 
     def plot(self):
         fig, ax = plt.subplots(2, 2)
-
-        ax[0, 0].plot(self.relative_radial_positions, self.masses, label="radius")
+        self.rel_radial_positions = self.radial_positions/self.init_radial_position
+        self.rel_masses = self.masses/self.init_mass
+        self.rel_temperatures = self.temperatures/self.init_temperature
+        self.rel_mass_densities = self.mass_densities/self.init_mass_density
+        self.rel_pressures = self.pressures/self.init_pressure
+        self.rel_luminosities = self.luminosities/self.init_luminosity
+        ax[0, 0].plot(self.rel_radial_positions, self.rel_masses, label="radius")
         ax[0, 0].set_title("Radius vs. Mass")
-        ax[0, 0].set_xlabel("Mass [kg]")
-        ax[0, 0].set_ylabel("Radius [m]")
+        ax[0, 0].set_xlabel("Relative Radius")
+        ax[0, 0].set_ylabel("Relative Mass")
 
-        ax[0, 1].plot(self.relative_radial_positions, self.luminosities, label="luminosity")
+        ax[0, 1].plot(self.rel_radial_positions, self.rel_luminosities, label="luminosity")
         ax[0, 1].set_title("Luminosity vs. Mass")
-        ax[0, 1].set_xlabel("Radius [m]")
-        ax[0, 1].set_ylabel("Luminosity [W]")
+        ax[0, 1].set_xlabel("Relative Radius")
+        ax[0, 1].set_ylabel("Relative Luminosity")
 
-        ax[1, 0].plot(self.relative_radial_positions, self.temperatures, label="temperature")
+        ax[1, 0].plot(self.rel_radial_positions, self.rel_temperatures, label="temperature")
         ax[1, 0].set_title("Temperature vs. Mass")
-        ax[1, 0].set_xlabel("Radius [m]")
-        ax[1, 0].set_ylabel("Temperature [K]")
+        ax[1, 0].set_xlabel("Relative Radius")
+        ax[1, 0].set_ylabel("Relative Temperature")
 
-        ax[1, 1].plot(self.relative_radial_positions, self.mass_densities, label="mass density")
+        ax[1, 1].plot(self.rel_radial_positions, self.rel_mass_densities, label="mass density")
         ax[1, 1].set_title("Mass Density vs. Mass")
-        ax[1, 1].set_xlabel("Radius [m]")
-        ax[1, 1].set_ylabel("Mass Density [kg/m^3]")
-
+        ax[1, 1].set_xlabel("Relative Radius")
+        ax[1, 1].set_ylabel("Relative Mass Density")
         # Add a title for the whole figure
-        fig.suptitle("Numerical Integral Results")
+        fig.suptitle("Numerical Integral Results (Relative)")
         plt.show()
 
     def plot_cross_section(self):
@@ -833,9 +857,9 @@ class EnergyTransport:
 
 
 #sanity_check_opacity()
-sanity_check_gradients()
+#sanity_check_gradients()
 instance = EnergyTransport(filename="stellar_parameters_0dot1.txt")
 instance.compute_and_store_to_file()
 instance.read_file()
-#instance.plot()
+instance.plot()
 #instance.plot_cross_section()
