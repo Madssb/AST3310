@@ -96,17 +96,23 @@ def log_10_opacity(mass_density, temperature):
         from 'opacity.txt'.
     """
     data = np.genfromtxt("opacity.txt")
-    LOG_10_R = data[0][1:]
+    LOG_10_RS = data[0][1:]
     LOG_10_TEMPERATURES = data[1:, 0]
     LOG_10_OPACITIES = data[1:, 1:]
     instance = RectBivariateSpline(
-        LOG_10_TEMPERATURES, LOG_10_R, LOG_10_OPACITIES)
+        LOG_10_TEMPERATURES, LOG_10_RS, LOG_10_OPACITIES)
 
     LOG_10_TEMPERATURE = np.log10(temperature)
     MASS_DENSITY_CGS = mass_density/1000
     R = MASS_DENSITY_CGS/(temperature/1e6)**3
     LOG_10_R = np.log10(R)
     LOG_10_OPACITY = instance.ev(LOG_10_TEMPERATURE, LOG_10_R)
+    OUT_OF_BOUNDS = (LOG_10_TEMPERATURES[0] > LOG_10_TEMPERATURE.any() 
+                     or LOG_10_TEMPERATURES[-1] < LOG_10_TEMPERATURE.any() 
+                     or LOG_10_RS[0] > LOG_10_R.any() 
+                     or LOG_10_RS[-1] < LOG_10_R.any() )
+    if OUT_OF_BOUNDS:
+        print("Warning: enterred out of bounds.")
     assert np.isfinite(mass_density).any()
     assert np.isfinite(temperature).any()
     assert np.isfinite(MASS_DENSITY_CGS).any()
@@ -486,11 +492,6 @@ def temperature_grad(mass, radial_position, mass_density, temperature,
             else:
                 temperature_grads[i] = (XI[i]**2 + U[i]*GEOMETRIC_FACTOR[i]*XI[i]/MIXING_LENGTH[i] + ADIABATIC_TEMPERATURE_GRAD)
         return temperature_grads
-    STABLE_TEMPERATURE_GRAD = stable_temperature_grad(mass,
-                                                        radial_position,
-                                                        mass_density,
-                                                        temperature,
-                                                        luminosity)
     CONVECTIVELY_UNSTABLE = STABLE_TEMPERATURE_GRAD > ADIABATIC_TEMPERATURE_GRAD
     if not CONVECTIVELY_UNSTABLE:
         return STABLE_TEMPERATURE_GRAD
@@ -656,7 +657,7 @@ def compute_temperature_differential_radiative_only(
     radial_position, mass_density, temperature, luminosity, sanity_check=False
 ):
     """
-    Computes the differential of temperature with respect to mass, for
+    Computes the differential of temperature with respect to mass for
         convectively stable mass shell.
 
     Args:
@@ -794,13 +795,13 @@ class EnergyTransport:
                                                                 self.temperature,
                                                                 self.luminosity)
         if CONVECTIVELY_UNSTABLE:
-            print("convectively unstable")
+            #print("convectively unstable")
             dtdm = temperature_differential(self.temperature,self.mass_density,
                                             self.mass, self.radial_position,
                                             self.pressure, self.luminosity, dpdm)
         else: 
-            print("convectively stable")
-            
+            #print("convectively stable")
+            pass
         mass_differentials = np.asarray([
             permitted_change*self.radial_position/drdm,
             permitted_change*self.pressure/dpdm,
@@ -876,7 +877,7 @@ class EnergyTransport:
         ax[1, 1].set_ylabel(r"Mass density [$\rho / \bar{\rho}_\odot$]")
         ax[1, 1].set_yscale("log")
         # Add a title for the whole figure
-        fig.suptitle("Numerical Integral Results (Relative)")
+        fig.savefig("parameters.pdf")
 
     def plot_opacity(self):
         fig, ax = plt.subplots()
@@ -907,7 +908,8 @@ class EnergyTransport:
                 label=r"$\nabla_\mathrm{AD}$")
         ax.legend()
         ax.set_xlabel(r"radius [$r/R_\odot$]")
-        ax.set_yscale("log")       
+        ax.set_yscale("log")    
+        fig.savefig("gradients.pdf")   
 
     def plot_cross_section(self):
         self.convective_fluxes = convective_flux(self.masses,
