@@ -885,7 +885,7 @@ class EnergyTransport:
         self.rel_pressures = self.pressures/self.init_pressure
         self.rel_luminosities = self.luminosities/self.init_luminosity
 
-    def plot(self):
+    def plot_parameters(self):
         """
         Visualizes quantities solved for, i.e. radial position,
         luminosity, mass density, temperature, and mass.
@@ -914,8 +914,7 @@ class EnergyTransport:
         ax[1, 1].set_xlabel(r"Radius [$r/R_\odot$]")
         ax[1, 1].set_ylabel(r"Mass density [$\rho / \bar{\rho}_\odot$]")
         ax[1, 1].set_yscale("log")
-        # Add a title for the whole figure
-        fig.savefig("parameters.pdf")
+        return fig, ax
 
     def plot_opacity(self):
         """
@@ -923,6 +922,10 @@ class EnergyTransport:
 
         Args:
             self (EnergyTransport): Instance of EnergyTransport.
+
+        Returns:
+            fig (matplotlib.figure.Figure): The Matplotlib Figure object containing the plot.
+            ax (matplotlib.axes.Axes): The Matplotlib Axes object representing the plot.
         """
         fig, ax = plt.subplots()
         OPACITIES = opacity(self.temperatures, self.mass_densities)
@@ -931,6 +934,7 @@ class EnergyTransport:
         ax.set_xlabel(r"Radius [$r/R_\odot$]")
         ax.set_ylabel(r"Opacity [$\kappa/\kappa_\mathrm{max}$]")
         ax.set_yscale("log")
+        return fig, ax
         
 
     def plot_gradients(self):
@@ -939,6 +943,10 @@ class EnergyTransport:
 
         Args:
             self (EnergyTransport): Instance of EnergyTransport.
+
+        Returns:
+            fig (matplotlib.figure.Figure): The Matplotlib Figure object containing the plot.
+            ax (matplotlib.axes.Axes): The Matplotlib Axes object representing the plot.
         """
         fig, ax = plt.subplots()
         TEMPERATURE_GRADS = temperature_grad(self.masses,
@@ -962,7 +970,7 @@ class EnergyTransport:
         ax.legend()
         ax.set_xlabel(r"radius [$r/R_\odot$]")
         ax.set_yscale("log")
-        fig.savefig("gradients.pdf")
+        return fig, ax
 
     def plot_cross_section(self):
         """
@@ -972,6 +980,9 @@ class EnergyTransport:
 
         Args:
             self (EnergyTransport): Instance of EnergyTransport.
+
+        Returns:
+            None.
         """
         self.convective_fluxes = convective_flux(self.masses,
                                                  self.radial_positions,
@@ -982,14 +993,40 @@ class EnergyTransport:
                       self.convective_fluxes, show_every=100)
 
 
-sanity_check_opacity()
-# sanity_check_gradients()
-main_instance = EnergyTransport(filename="main_parameters.txt")
-main_instance.compute_and_store_to_file()
-main_instance.read_file()
-main_instance.plot_opacity()
-main_instance.plot()
-main_instance.plot_gradients()
-main_instance.plot_cross_section()
+
 plt.show()
-double_radius_instance = EnergyTransport(init_radial_position= ,filename="radius_parameters.txt")
+
+
+
+def main_star():
+    """
+    instantiates EnergyTransport for a star with values of the solar surface,
+    numerically integrates r, L, P and T with respect to mass, and visualizes
+    these, temperature gradients, and a cross section for the star.
+    saves figs except for the cross section as pdfs.
+    """
+    sanity_check_opacity()
+    sanity_check_gradients()
+    main_instance = EnergyTransport(filename="main_parameters.txt")
+    main_instance.compute_and_store_to_file()
+    main_instance.read_file()
+    fig, ax = main_instance.plot_parameters()
+    fig.savefig("main_star_parameters.pdf")
+    fig, ax = main_instance.plot_gradients()
+    fig.savefig("main_star_gradients.pdf")
+    main_instance.plot_cross_section()
+
+def double_radius_star():
+    double_radius_instance = EnergyTransport(radius=2*RADIUS_SUN,
+                                             filename="radius_parameters.txt")
+    double_radius_instance.compute_and_store_to_file()
+    double_radius_instance.read_file()
+    fig, ax = double_radius_instance.plot_parameters()
+    fig.savefig("2x_radius_star_parameters.pdf")
+    fig, ax = double_radius_instance.plot_gradients()
+    fig.savefig("2x_radius_star_gradients.pdf")
+    double_radius_instance.plot_cross_section()
+
+def main():
+    main_star()
+    double_radius_star()
