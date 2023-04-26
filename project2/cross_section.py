@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def cross_section(R, L, F_C, show_every=20, sanity=False, savefig=False):
+def cross_section(R, L, F_C, star_name, show_every=20, sanity=False, savefig=False):
     """
     plot cross section of star
     :param R: radius, array
@@ -63,7 +63,8 @@ def cross_section(R, L, F_C, show_every=20, sanity=False, savefig=False):
     plt.xlabel('$R$')
     plt.ylabel('$R$')
     plt.title('Cross section of star')
-    plt.show()
+    plt.savefig("figs/" + star_name + "_cross_section.pdf")
+    #plt.show()
 
     if savefig:
         if sanity:

@@ -603,7 +603,7 @@ def radiative_flux(mass, radial_position, mass_density, temperature,
             /OPACITY/mass_density/PRESSURE_SCALE_HEIGHT)
 
 
-def append_line_to_data_file(data, filename="stellar_parameters.txt"):
+def append_line_to_data_file(data, filename):
     """
     Appends data to new line in specified file
     """
@@ -612,7 +612,7 @@ def append_line_to_data_file(data, filename="stellar_parameters.txt"):
         np.savetxt(f, data, delimiter=',', fmt='%f')
 
 
-def initialize_file(filename="stellar_parameters.txt"):
+def initialize_file(filename):
     """
     Clears the contents of the file specified by filename, if it exists, or
     creates the file if it doesn't exist.
@@ -655,14 +655,6 @@ def temperature_diff(mass, radial_position, mass_density, temperature,
     TEMPERATURE_GRAD = temperature_grad(
         mass, radial_position, mass_density, temperature, luminosity,
         sanity_check=sanity_check)
-    try:
-        assert pressure.any() > 0
-        assert TEMPERATURE_GRAD.any() > 0
-        assert dpdm.any()
-    except AttributeError:
-        assert pressure > 0
-        assert TEMPERATURE_GRAD > 0
-        assert dpdm > 0
     return TEMPERATURE_GRAD*temperature/pressure*dpdm
 
 
@@ -762,7 +754,7 @@ class EnergyTransport:
     def __init__(self, temperature=5770, luminosity=LUMINOSITY_SUN,
                  mass=MASS_SUN, radius=RADIUS_SUN,
                  mass_density=1.42e-7*AVERAGE_MASS_DENSITY_SUN,
-                 filename="stellar_parameters.txt"):
+                 star_name="main"):
         """
         Initializes instance of EnergyTransport. 
 
@@ -774,7 +766,8 @@ class EnergyTransport:
             luminosity (float): Luminosity of sun-like star [W].
             mass_density (float): mass density at surface of sun-like star [kg/m^3].
         """
-        self.filename = filename
+        self.star_name = star_name
+        self.filename = "data/" + self.star_name + "_data.txt"
         self.radial_position = radius
         self.mass = mass
         self.mass_density = mass_density
@@ -878,12 +871,12 @@ class EnergyTransport:
         self.temperatures = data[:, 3]
         self.mass_densities = data[:, 4]
         self.pressures = data[:, 5]
-        self.rel_radial_positions = self.radial_positions/self.init_radial_position
-        self.rel_masses = self.masses/self.init_mass
+        self.rel_radial_positions = self.radial_positions/RADIUS_SUN
+        self.rel_masses = self.masses/MASS_SUN
         self.rel_temperatures = self.temperatures
         self.rel_mass_densities = self.mass_densities/self.init_mass_density
         self.rel_pressures = self.pressures/self.init_pressure
-        self.rel_luminosities = self.luminosities/self.init_luminosity
+        self.rel_luminosities = self.luminosities/LUMINOSITY_SUN
 
     def plot_parameters(self):
         """
@@ -897,7 +890,7 @@ class EnergyTransport:
         ax[0, 0].plot(self.rel_radial_positions,
                       self.rel_masses, label="radius")
         ax[0, 0].set_xlabel(r"Radius [$r/R_\odot$]")
-        ax[0, 0].set_ylabel(r"$m/M_\odot$")
+        ax[0, 0].set_ylabel(r"Mass $m/M_\odot$")
 
         ax[0, 1].plot(self.rel_radial_positions,
                       self.rel_luminosities, label="luminosity")
@@ -914,11 +907,14 @@ class EnergyTransport:
         ax[1, 1].set_xlabel(r"Radius [$r/R_\odot$]")
         ax[1, 1].set_ylabel(r"Mass density [$\rho / \bar{\rho}_\odot$]")
         ax[1, 1].set_yscale("log")
-        return fig, ax
+        fig.suptitle(self.star_name)
+        fig.tight_layout()
+        fig.savefig("figs/" + self.star_name + "_parameters.pdf")
 
     def plot_opacity(self):
         """
-        Visualizes the opacity.
+        Visualizes the opacity. Uninteresting beyond the scope
+        of debugging.
 
         Args:
             self (EnergyTransport): Instance of EnergyTransport.
@@ -934,7 +930,9 @@ class EnergyTransport:
         ax.set_xlabel(r"Radius [$r/R_\odot$]")
         ax.set_ylabel(r"Opacity [$\kappa/\kappa_\mathrm{max}$]")
         ax.set_yscale("log")
-        return fig, ax
+        fig.suptitle(self.star_name)
+        fig.tight_layout()
+        #fig.savefig(self.star_name + "_opacity.pdf")
         
 
     def plot_gradients(self):
@@ -970,7 +968,9 @@ class EnergyTransport:
         ax.legend()
         ax.set_xlabel(r"radius [$r/R_\odot$]")
         ax.set_yscale("log")
-        return fig, ax
+        fig.suptitle(self.star_name)
+        fig.tight_layout()
+        fig.savefig("figs/" + self.star_name + "_gradients.pdf")
 
     def plot_cross_section(self):
         """
@@ -990,12 +990,7 @@ class EnergyTransport:
                                                  self.temperatures,
                                                  self.luminosities)
         cross_section(self.radial_positions, self.luminosities,
-                      self.convective_fluxes, show_every=100)
-
-
-
-plt.show()
-
+                      self.convective_fluxes, self.star_name, show_every=100)
 
 
 def main_star():
@@ -1005,28 +1000,58 @@ def main_star():
     these, temperature gradients, and a cross section for the star.
     saves figs except for the cross section as pdfs.
     """
-    sanity_check_opacity()
-    sanity_check_gradients()
-    main_instance = EnergyTransport(filename="main_parameters.txt")
-    main_instance.compute_and_store_to_file()
+    main_instance = EnergyTransport(star_name="main")
+    #main_instance.compute_and_store_to_file()
     main_instance.read_file()
-    fig, ax = main_instance.plot_parameters()
-    fig.savefig("main_star_parameters.pdf")
-    fig, ax = main_instance.plot_gradients()
-    fig.savefig("main_star_gradients.pdf")
+    main_instance.plot_parameters()
+    main_instance.plot_gradients()
     main_instance.plot_cross_section()
 
-def double_radius_star():
-    double_radius_instance = EnergyTransport(radius=2*RADIUS_SUN,
-                                             filename="radius_parameters.txt")
-    double_radius_instance.compute_and_store_to_file()
-    double_radius_instance.read_file()
-    fig, ax = double_radius_instance.plot_parameters()
-    fig.savefig("2x_radius_star_parameters.pdf")
-    fig, ax = double_radius_instance.plot_gradients()
-    fig.savefig("2x_radius_star_gradients.pdf")
-    double_radius_instance.plot_cross_section()
+def x5_radius_star():
+    instance = EnergyTransport(radius=5*RADIUS_SUN,
+                                             star_name="5x_radius")
+    #instance.compute_and_store_to_file()
+    instance.read_file()
+    instance.plot_parameters()
+    instance.plot_gradients()
+    instance.plot_cross_section()
+
+def x10_temperature_star():
+    instance = EnergyTransport(temperature=5.77e4, star_name="10x_temp")
+    #instance.compute_and_store_to_file()
+    instance.read_file()
+    instance.plot_parameters()
+    instance.plot_gradients()
+    instance.plot_cross_section()
+
+def x100_density_star():    
+    main_star_surface_density = AVERAGE_MASS_DENSITY_SUN*1.42e-7
+    instance = EnergyTransport(mass_density=main_star_surface_density*1e2,
+                               star_name="100x_mass_density")
+    #instance.compute_and_store_to_file()
+    instance.read_file()
+    instance.plot_parameters()
+    instance.plot_gradients()
+    instance.plot_cross_section()
+
+
+def quarter_radius_star():
+    instance = EnergyTransport(radius=RADIUS_SUN/4, star_name="quarter_radius")
+    #instance.compute_and_store_to_file()
+    instance.read_file()
+    instance.plot_parameters()
+    instance.plot_gradients()
+    instance.plot_cross_section()
+
 
 def main():
+    #sanity_check_opacity()
+    #sanity_check_gradients()
     main_star()
-    double_radius_star()
+    x5_radius_star()
+    x10_temperature_star()
+    x100_density_star()
+    quarter_radius_star()
+
+if __name__ == "__main__":
+    main()
