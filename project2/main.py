@@ -10,7 +10,7 @@ import os
 import matplotlib.pyplot as plt
 from cross_section import cross_section
 from tabulate import tabulate
-
+import random
 
 STEFAN_BOLTZMANN_CONSTANT = 5.6704e-8  # W / (m^2 K^4)
 GRAVITATIONAL_CONSTANT = 6.6742e-11  # N m^2 / kg^2
@@ -22,8 +22,9 @@ LUMINOSITY_SUN = 3.846e26  # kg m^2 /s^3  (W)
 MASS_SUN = 1.989e30  # kg
 RADIUS_SUN = 6.96e8  # m
 AVERAGE_MASS_DENSITY_SUN = 1.408e3  # kg/m^3
+SURFACE_TEMPERATURE = 5770 #K
 SPEED_OF_LIGHT = 2.9979e8  # m/s
-
+SURFACE_DENSITY = AVERAGE_MASS_DENSITY_SUN*1.42e-7
 
 def mean_molecular_mass():
     """
@@ -113,7 +114,8 @@ def log_10_opacity(mass_density, temperature):
                      or LOG_10_RS[0] > LOG_10_R.any()
                      or LOG_10_RS[-1] < LOG_10_R.any())
     if OUT_OF_BOUNDS:
-        print("Warning: entered out of bounds.")
+        #print("Warning: entered out of bounds.")
+        pass
     assert np.isfinite(mass_density).any()  
     assert np.isfinite(temperature).any()
     assert np.isfinite(MASS_DENSITY_CGS).any()
@@ -560,13 +562,30 @@ def convective_flux(mass, radial_position, mass_density, temperature,
     Returns:
         (float): The convective flux.
     """
+    STABLE_TEMPERATURE_GRAD = stable_temperature_grad(mass,
+                                                      radial_position,
+                                                      mass_density,
+                                                      temperature,
+                                                      luminosity)
     GRAVITATIONAL_ACCELERATION = gravitational_acceleration(
         mass, radial_position)
     PRESSURE_SCALE_HEIGHT = pressure_scale_height(
         mass, radial_position, temperature)
     MIXING_LENGTH = 1 * PRESSURE_SCALE_HEIGHT
     XI = xi(mass, radial_position, mass_density,
-            temperature, luminosity, sanity_check=sanity_check)
+            temperature, luminosity, sanity_check=sanity_check) 
+    if isinstance(mass,np.ndarray):
+        #booleans and array is a yucky combination
+        convective_fluxes = np.empty_like(mass)
+        for i in range(len(mass)):
+            convective_fluxes[i] = (mass_density[i]*SPECIFIC_HEAT_CAPACITY*temperature[i]
+                    * np.sqrt(GRAVITATIONAL_ACCELERATION[i]*DELTA/PRESSURE_SCALE_HEIGHT[i]**3)
+                    * (MIXING_LENGTH[i]/2)**2*XI[i]**3)
+            CONVECTIVELY_UNSTABLE = (STABLE_TEMPERATURE_GRAD[i] 
+                                > ADIABATIC_TEMPERATURE_GRAD)
+            if not CONVECTIVELY_UNSTABLE:
+                convective_fluxes[i] = 0
+        return convective_fluxes
     return (mass_density*SPECIFIC_HEAT_CAPACITY*temperature
             * np.sqrt(GRAVITATIONAL_ACCELERATION*DELTA/PRESSURE_SCALE_HEIGHT**3)
             * (MIXING_LENGTH/2)**2*XI**3)
@@ -746,14 +765,25 @@ def sanity_check_gradients():
     print("success")
 
 
+def energy_production_branches(mass_density, temperature):
+    instance = EnergyProduction(mass_density, temperature)
+    TOT_EPR_PP1 = instance.energy_production_rate_pp_1()
+    TOT_EPR_PP2 = instance.energy_production_rate_pp_2()
+    TOT_EPR_PP3 = instance.energy_production_rate_pp_3()
+    TOT_EPR_CNO = instance.energy_production_rate_cno()
+    return TOT_EPR_PP1, TOT_EPR_PP2, TOT_EPR_PP3, TOT_EPR_CNO
+
+
 class EnergyTransport:
     """
     Models central parts of a Sun-like star.
     """
 
-    def __init__(self, temperature=5770, luminosity=LUMINOSITY_SUN,
-                 mass=MASS_SUN, radius=RADIUS_SUN,
-                 mass_density=1.42e-7*AVERAGE_MASS_DENSITY_SUN,
+    def __init__(self, temperature=SURFACE_TEMPERATURE,
+                 luminosity=LUMINOSITY_SUN,
+                 mass=MASS_SUN,
+                 radius=RADIUS_SUN,
+                 mass_density=SURFACE_DENSITY,
                  star_name="main"):
         """
         Initializes instance of EnergyTransport. 
@@ -874,7 +904,7 @@ class EnergyTransport:
         self.rel_radial_positions = self.radial_positions/RADIUS_SUN
         self.rel_masses = self.masses/MASS_SUN
         self.rel_temperatures = self.temperatures
-        self.rel_mass_densities = self.mass_densities/self.init_mass_density
+        self.rel_mass_densities = self.mass_densities/SURFACE_DENSITY
         self.rel_pressures = self.pressures/self.init_pressure
         self.rel_luminosities = self.luminosities/LUMINOSITY_SUN
 
@@ -886,30 +916,31 @@ class EnergyTransport:
         Args:
             self (EnergyTransport): Instance of EnergyTransport.
         """
-        fig, ax = plt.subplots(2, 2)
+        fig, ax = plt.subplots(2, 2)  # set figure size
         ax[0, 0].plot(self.rel_radial_positions,
-                      self.rel_masses, label="radius")
+                    self.rel_masses, label="radius")
         ax[0, 0].set_xlabel(r"Radius [$r/R_\odot$]")
         ax[0, 0].set_ylabel(r"Mass $m/M_\odot$")
 
         ax[0, 1].plot(self.rel_radial_positions,
-                      self.rel_luminosities, label="luminosity")
+                    self.rel_luminosities, label="luminosity")
         ax[0, 1].set_xlabel(r"Radius [$r/R_\odot$]")
         ax[0, 1].set_ylabel(r"Luminosity [$L/L_\odot$]")
 
         ax[1, 0].plot(self.rel_radial_positions,
-                      self.rel_temperatures, label="temperature")
+                    self.rel_temperatures, label="temperature")
         ax[1, 0].set_xlabel(r"Radius [$r/R_\odot$]")
         ax[1, 0].set_ylabel(r"Temperature [K]")
 
         ax[1, 1].plot(self.rel_radial_positions,
-                      self.rel_mass_densities, label="mass density")
+                    self.rel_mass_densities, label="mass density")
         ax[1, 1].set_xlabel(r"Radius [$r/R_\odot$]")
         ax[1, 1].set_ylabel(r"Mass density [$\rho / \bar{\rho}_\odot$]")
         ax[1, 1].set_yscale("log")
         fig.suptitle(self.star_name)
         fig.tight_layout()
-        fig.savefig("figs/" + self.star_name + "_parameters.pdf")
+        fig.savefig("figs/" + self.star_name + "_parameters.pdf", dpi=300) # set dpi for high-quality image
+
 
     def plot_opacity(self):
         """
@@ -918,10 +949,6 @@ class EnergyTransport:
 
         Args:
             self (EnergyTransport): Instance of EnergyTransport.
-
-        Returns:
-            fig (matplotlib.figure.Figure): The Matplotlib Figure object containing the plot.
-            ax (matplotlib.axes.Axes): The Matplotlib Axes object representing the plot.
         """
         fig, ax = plt.subplots()
         OPACITIES = opacity(self.temperatures, self.mass_densities)
@@ -940,11 +967,7 @@ class EnergyTransport:
         Visualizes the temperature gradients of interest.
 
         Args:
-            self (EnergyTransport): Instance of EnergyTransport.
-
-        Returns:
-            fig (matplotlib.figure.Figure): The Matplotlib Figure object containing the plot.
-            ax (matplotlib.axes.Axes): The Matplotlib Axes object representing the plot.
+            self (EnergyTransport): Instance of EnergyTransport..
         """
         fig, ax = plt.subplots()
         TEMPERATURE_GRADS = temperature_grad(self.masses,
@@ -967,6 +990,7 @@ class EnergyTransport:
                 label=r"$\nabla_\mathrm{AD}$")
         ax.legend()
         ax.set_xlabel(r"radius [$r/R_\odot$]")
+        ax.set_ylabel(r"$\nabla$")
         ax.set_yscale("log")
         fig.suptitle(self.star_name)
         fig.tight_layout()
@@ -992,6 +1016,64 @@ class EnergyTransport:
         cross_section(self.radial_positions, self.luminosities,
                       self.convective_fluxes, self.star_name, show_every=100)
 
+    def plot_fluxes(self):
+        """
+        Visualizes the convective flux and the radiative flux.
+
+        Args:
+            self (EnergyTransport): Instance of EnergyTransport.
+        """
+        RADIATIVE_FLUX = radiative_flux(self.masses, self.radial_positions,
+                                        self.mass_densities, self.temperatures,
+                                        self.luminosities)
+        CONVECTIVE_FLUX = convective_flux(self.masses, self.radial_positions,
+                                          self.mass_densities,
+                                          self.temperatures,
+                                          self.luminosities)
+        TOTAL_FLUX = CONVECTIVE_FLUX + RADIATIVE_FLUX
+        REL_RADIATIVE_FLUX = RADIATIVE_FLUX/TOTAL_FLUX
+        REL_CONVECTIVE_FLUX = CONVECTIVE_FLUX/TOTAL_FLUX
+        fig, ax = plt.subplots()
+        ax.plot(self.rel_radial_positions, REL_RADIATIVE_FLUX,
+                label=r"$F_\mathrm{rad}/F_\mathrm{total}$")
+        ax.plot(self.rel_radial_positions, REL_CONVECTIVE_FLUX,
+                label=r"$F_\mathrm{con}/F_\mathrm{total}$")
+        ax.legend()
+        ax.set_xlabel(r"radius [$r/R_\odot$]")
+        ax.set_ylabel(r"Normalized flux [$F_\mathrm{total}$]")
+        fig.tight_layout()
+        fig.savefig("figs/" + self.star_name + "_fluxes.pdf")
+        print("success?")
+
+
+    def plot_energy_production_branches(self):
+        """
+        Visualizes the energy production rates for some sun-like star,
+        as a function of radial position.
+
+        Args:
+            self (EnergyTransport): Instance of EnergyTransport.
+        """
+        EPR_PP1 = np.empty_like(self.masses)
+        EPR_PP2 = np.copy(EPR_PP1)
+        EPR_PP3 = np.copy(EPR_PP1)
+        EPR_CNO = np.copy(EPR_PP1)
+        EPR_SUM = np.copy(EPR_PP1)
+        for i in range(len(self.masses)):
+            EPR_PP1[i], EPR_PP2[i], EPR_PP3[i], EPR_CNO[i] = (
+            energy_production_branches(self.mass_densities[i],
+                                       self.temperatures[i]))
+        fig, ax = plt.subplots()
+        TEPR = np.sum([EPR_PP1, EPR_PP2, EPR_PP3, EPR_CNO], axis=0)
+        ax.plot(self.rel_radial_positions, EPR_PP1/TEPR, label="PP1")
+        ax.plot(self.rel_radial_positions, EPR_PP2/TEPR, label="PP2")
+        ax.plot(self.rel_radial_positions, EPR_PP3/TEPR, label="PP3")
+        ax.plot(self.rel_radial_positions, EPR_CNO/TEPR, label="CNO")
+        ax.legend()
+        ax.set_xlabel(r"radius [$r/R_\odot$]")
+        ax.set_ylabel(r"Relative energy production")
+        fig.savefig("figs/" + self.star_name + "_energy_production_rates.pdf")
+
 
 def main_star():
     """
@@ -1000,44 +1082,85 @@ def main_star():
     these, temperature gradients, and a cross section for the star.
     saves figs except for the cross section as pdfs.
     """
-    main_instance = EnergyTransport(star_name="main")
-    #main_instance.compute_and_store_to_file()
-    main_instance.read_file()
-    main_instance.plot_parameters()
-    main_instance.plot_gradients()
-    main_instance.plot_cross_section()
+    instance = EnergyTransport(star_name="main")
+    #instance.compute_and_store_to_file()
+    instance.read_file()
+    #instance.plot_parameters()
+    #instance.plot_gradients()
+    instance.plot_cross_section()
+    #instance.plot_fluxes()
+    #instance.plot_energy_production_branches()
 
-def x5_radius_star():
+def large_radius_star():
     instance = EnergyTransport(radius=5*RADIUS_SUN,
-                                             star_name="5x_radius")
-    #instance.compute_and_store_to_file()
+                               star_name="large_radius")
+    instance.compute_and_store_to_file()
     instance.read_file()
     instance.plot_parameters()
     instance.plot_gradients()
     instance.plot_cross_section()
 
-def x10_temperature_star():
-    instance = EnergyTransport(temperature=5.77e4, star_name="10x_temp")
-    #instance.compute_and_store_to_file()
+
+def small_radius_star():
+    instance = EnergyTransport(temperature=5*SURFACE_TEMPERATURE,
+                               star_name="small_radius")
+    instance.compute_and_store_to_file()
     instance.read_file()
     instance.plot_parameters()
     instance.plot_gradients()
     instance.plot_cross_section()
+
+
+def large_temperature_star():
+    instance = EnergyTransport(temperature=5*SURFACE_TEMPERATURE,
+                               star_name="large_temperature")
+    instance.compute_and_store_to_file()
+    instance.read_file()
+    instance.plot_parameters()
+    instance.plot_gradients()
+    instance.plot_cross_section()
+
+
+def small_temperature_star():
+    instance = EnergyTransport(star_name="small_temperature",
+                               temperature=SURFACE_TEMPERATURE/5)
+    instance.compute_and_store_to_file()
+    instance.read_file()
+    instance.plot_parameters()
+    instance.plot_gradients()
+    instance.plot_cross_section()
+
 
 def x100_density_star():    
-    main_star_surface_density = AVERAGE_MASS_DENSITY_SUN*1.42e-7
-    instance = EnergyTransport(mass_density=main_star_surface_density*1e2,
+    instance = EnergyTransport(mass_density=SURFACE_DENSITY*1e2,
                                star_name="100x_mass_density")
-    #instance.compute_and_store_to_file()
+    instance.compute_and_store_to_file()
+    instance.read_file()
+    instance.plot_parameters()
+    instance.plot_gradients()
+    instance.plot_cross_section()
+
+def x100_pressure_star():
+    SURFACE_PRESSURE = mass_density_to_pressure(SURFACE_TEMPERATURE,
+                                                SURFACE_DENSITY)
+    PRESSURE = SURFACE_PRESSURE*100
+    MASS_DENSITY = pressure_to_mass_density(SURFACE_TEMPERATURE, PRESSURE)
+    instance = EnergyTransport(mass_density=MASS_DENSITY,
+                               star_name="100x_pressure")
+    instance.compute_and_store_to_file()
     instance.read_file()
     instance.plot_parameters()
     instance.plot_gradients()
     instance.plot_cross_section()
 
 
-def quarter_radius_star():
-    instance = EnergyTransport(radius=RADIUS_SUN/4, star_name="quarter_radius")
-    #instance.compute_and_store_to_file()
+def desperate_star_model():
+    instance = EnergyTransport(mass_density=100*SURFACE_DENSITY,
+                               mass=0.95*MASS_SUN,
+                               radius=RADIUS_SUN,
+                               temperature=0.8*SURFACE_TEMPERATURE, 
+                               star_name="model_sun")
+    instance.compute_and_store_to_file()
     instance.read_file()
     instance.plot_parameters()
     instance.plot_gradients()
@@ -1047,11 +1170,15 @@ def quarter_radius_star():
 def main():
     #sanity_check_opacity()
     #sanity_check_gradients()
-    main_star()
-    x5_radius_star()
-    x10_temperature_star()
-    x100_density_star()
-    quarter_radius_star()
+    #main_star()
+    #large_radius_star()
+    #small_radius_star()
+    #large_temperature_star()
+    #small_temperature_star()
+    #x100_density_star()
+    #x100_pressure_star()
+    desperate_star_model()
+    plt.show()
 
 if __name__ == "__main__":
-    main()
+    main()  
