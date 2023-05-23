@@ -1,3 +1,5 @@
 project1.py
 *.pdf
 *.txt
+project3/FVis3.py
+project3/__pycache__/FVis3.cpython-38.pyc

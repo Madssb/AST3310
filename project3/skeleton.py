@@ -4,6 +4,7 @@ import FVis3
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 class TwoDConvection:
     x_max, y_max = 12e6, 4e6
     nx, ny = 300, 100
@@ -12,15 +13,16 @@ class TwoDConvection:
     temp_sun = 5778  # Kelvin
     mass_sun = 1.989e30  # kg
     radius_sun = 6.96e8  # m
-    pressure_sun = 1.8e4 #Pa
+    pressure_sun = 1.8e4  # Pa
     grav_const = 6.6742e-11  # N m^2 /kg^2
     grav_acc = grav_const*mass_sun/radius_sun**2  # m / s^2
     gamma = 5/3
     nabla = 4.1
-    atomic_mass_unit = 1.6605e-27 #kg
+    atomic_mass_unit = 1.6605e-27  # kg
     avg_atomic_weight = 0.61
-    boltzmann_const = 1.3806e-23 # m^2 kg/(s^2 K)
+    boltzmann_const = 1.3806e-23  # m^2 kg/(s^2 K)
     dTdr = -grav_acc*nabla*avg_atomic_weight*atomic_mass_unit/boltzmann_const
+    y = np.linspace(4e6, 0, ny)
 
     def __init__(self):
         """
@@ -31,20 +33,19 @@ class TwoDConvection:
         self.P = np.empty((self.nx, self.ny), dtype=float)
         self.e = np.empty((self.nx, self.ny), dtype=float)
         self.u = np.zeros((self.nx, self.ny), dtype=float)
-        self.w = np.zeros((self.nx, self.ny), dtype=float)   
-
+        self.w = np.zeros((self.nx, self.ny), dtype=float)
 
     def initialise(self):
         """
         Initialise temperature, pressure, density and internal energy
         """
-        self.T[:,0] = self.temp_sun
-        self.T[:,1:] = self.T[:,:-1] - self.dTdr*self.dy
+        temp_1d = (self.grav_acc*self.atomic_mass_unit*self.avg_atomic_weight
+                   * self.y/self.boltzmann_const + self.temp_sun)
+        self.T = np.tile(temp_1d[:, np.newaxis], (1, self.ny))
         self.P = self.pressure_sun*(self.T/self.temp_sun)**(1/self.nabla)
-        self.rho = (self.P * self.atomic_mass_unit * self.avg_atomic_weight 
+        self.rho = (self.P * self.atomic_mass_unit * self.avg_atomic_weight
                     / (self.boltzmann_const * self.T))
         self.e = self.P/(self.gamma - 1)
-
 
     def timestep(self):
         """
@@ -59,18 +60,18 @@ class TwoDConvection:
         """
         Boundary conditions for energy, density and velocity
         """
-        self.u[:,0] = 0
-        self.u[:,-1] = 0
-        self.w[:,0] = 0
-        self.w[:,-1] = 0 
-        self.e[:,0] = ((3/(2*self.dy) - self.grav_acc*self.avg_atomic_weight*self.atomic_mass_unit/(self.boltzmann_const*self.T[:,0]))**(-1)*(self.e[:,2] + 4*self.e[:,1])/(2*self.dy))
-        self.e[:,-1] = ((3/(2*self.dy) - self.grav_acc*self.avg_atomic_weight*self.atomic_mass_unit/(self.boltzmann_const*self.T[:,-1]))**(-1)*()/(2*self.dy))
-        self.rho[:,0]
-        self.rho[:,-1]
-        
-        
+        consts_factor = self.grav_acc*self.atomic_mass_unit*self.avg_atomic_weight/self.boltzmann_const
+        self.T[:, 0] = ((4*self.T[:, 1] - self.T[:, 2])/3 + 2*self.dy/3*consts_factor*self.nabla)
+        self.e[:, 0] = (2/(3 * self.dy) - consts_factor/self.T[:, 0])**(-1)*(4*self.e[:, 1] - self.e[:, 2])/(2*self.dy)
+        self.rho[:, 0] = self.e[:, 0]*(self.gamma - 1)*consts_factor/(self.grav_acc*self.T[:, 0])
+        self.T[:, -1] =  ((4*self.T[:, -2] - self.T[:, -3])/3 + 2*self.dy*consts_factor*self.nabla/3)
+        self.e[:, -1] = (3/(2*self.dy) + consts_factor/self.T[:, -1])**(-1)*(4*self.e[:, -2] - self.e[:, -3])/(2*self.dy)
+        self.rho[:, -1] = self.e[:, -1]*(self.gamma - 1)*consts_factor/(self.grav_acc*self.T[:, -1])
+        self.u[:, 0] = 0
+        self.u[:, -1] = 0
+        self.w[:, 0] = 0
+        self.w[:, -1] = 0
 
-        
 
     def central_x(self, var):
         """
@@ -151,42 +152,40 @@ class TwoDConvection:
         """
         self.initialise()
 
-
     def plot_initialise(self):
         """
         Plots initials
         """
         self.initialise()
-        
+
         fig, axs = plt.subplots(2, 2, figsize=(10, 8))
-        
+
         im1 = axs[0, 0].imshow(self.P, aspect='auto')
         axs[0, 0].set_xlabel('y')
         axs[0, 0].set_ylabel('x')
         axs[0, 0].set_title('Pressure (P)')
         fig.colorbar(im1, ax=axs[0, 0])
-        
+
         im2 = axs[0, 1].imshow(self.T, aspect='auto')
         axs[0, 1].set_xlabel('y')
         axs[0, 1].set_ylabel('x')
         axs[0, 1].set_title('Temperature (T)')
         fig.colorbar(im2, ax=axs[0, 1])
-        
+
         im3 = axs[1, 0].imshow(self.e, aspect='auto')
         axs[1, 0].set_xlabel('y')
         axs[1, 0].set_ylabel('x')
         axs[1, 0].set_title('Internal Energy (e)')
         fig.colorbar(im3, ax=axs[1, 0])
-        
+
         im4 = axs[1, 1].imshow(self.rho, aspect='auto')
         axs[1, 1].set_xlabel('y')
         axs[1, 1].set_ylabel('x')
         axs[1, 1].set_title('Density (rho)')
         fig.colorbar(im4, ax=axs[1, 1])
-        
+
         fig.tight_layout()
         plt.show()
-
 
 
 if __name__ == '__main__':
