@@ -34,12 +34,14 @@ class TwoDConvection:
         self.e = np.empty((self.nx, self.ny), dtype=float)
         self.u = np.zeros((self.nx, self.ny), dtype=float)
         self.w = np.zeros((self.nx, self.ny), dtype=float)
+        self.rho_u = np.zeros((self.nx, self.ny), dtype=float)
+        self.rho_w = np.zeros((self.nx, self.ny), dtype=float)
 
     def initialise(self):
         """
         Initialise temperature, pressure, density and internal energy
         """
-        temp_1d = (self.grav_acc*self.atomic_mass_unit*self.avg_atomic_weight
+        temp_1d = (self.grav_acc*self.atomic_mass_unit*self.avg_atomic_weight   
                    * self.y/self.boltzmann_const + self.temp_sun)
         self.T = np.tile(temp_1d[:, np.newaxis], (1, self.ny))
         self.P = self.pressure_sun*(self.T/self.temp_sun)**(1/self.nabla)
@@ -52,9 +54,16 @@ class TwoDConvection:
         Calculate timestep
         """
         p = 0.1
-        rel_phi = self.phi/self.dphidt
-        np.max()
+        rel_rho = self.rho_diff_t/self.rho
+        rel_u = self.u_diff_t/self.u
+        rel_w = self.w_diff_t/self.w
+        rel_e = self.e_diff_t/self.e
+        delta = np.max(np.asarray([np.max(rel_rho), np.max(rel_u), np.max(rel_w), np.max(rel_e)]))
         self.dt = p/delta
+        rel_x = self.u/self.dx
+        rel_y = self.w/self.dy
+
+
 
     def boundary_conditions(self):
         """
@@ -151,6 +160,30 @@ class TwoDConvection:
         hydrodynamic equations solver
         """
         self.initialise()
+        while True:
+            #self.boundary_conditions()
+            u_diff_x = self.central_x(self.u)
+            u_diff_y = self.central_y(self.u)
+            w_diff_x = self.central_x(self.w)
+            w_diff_y = self.central_y(self.w)
+            rho_diff_x = self.upwind_x(self.rho, self.u)
+            rho_diff_y = self.upwind_y(self.rho, self.w)   
+            rho_u_diff_x = self.upwind_x(self.rho_u, self.u)
+            rho_u_diff_y = self.upwind_y(self.rho_u, self.w)
+            rho_w_diff_x = self.upwind_x(self.rho_w, self.u)
+            rho_w_diff_y = self.upwind_y(self.rho_w, self.w)
+            P_diff_x = self.central_x(self.P)
+            P_diff_y = self.central_y(self.P)
+            self.rho_diff_t = -self.rho*(u_diff_x + w_diff_y) - self.u*rho_diff_x - self.w*rho_diff_y 
+            rho_u_diff_t = -self.rho_u*(u_diff_x + w_diff_y) - self.u*rho_u_diff_x  - self.w*rho_u_diff_y - P_diff_x
+            rho_w_diff_t = -self.rho_w(w_diff_x + u_diff_y) - self.w*rho_w_diff_x - self.u*rho_w_diff_y + self.rho*self.grav_acc
+            self.u_diff_t = rho_u_diff_t/self.rho
+            self.w_diff_t = rho_w_diff_t/self.rho
+            e_diff_x = self.upwind_x(self.e, self.u)
+            e_diff_y = self.upwind_y(self.e, self.w)
+            self.e_diff_t = -self.u*e_diff_x -self.w*e_diff_y - (self.P + self.e)*(u_diff_x + w_diff_y)
+
+
 
     def plot_initialise(self):
         """
