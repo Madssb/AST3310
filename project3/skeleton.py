@@ -1,11 +1,14 @@
 # visualiser
-import FVis3
+import FVis3 as FVis
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 
 class TwoDConvection:
+    """
+    Simulate convection in photosphere of sun for two dimensions.
+    """
     x_max, y_max = 12e6, 4e6
     nx, ny = 300, 100
     dx = x_max/nx
@@ -17,18 +20,25 @@ class TwoDConvection:
     grav_const = 6.6742e-11  # N m^2 /kg^2
     grav_acc = grav_const*mass_sun/radius_sun**2  # m / s^2
     gamma = 5/3
-    nabla = 4.1
+    nabla = 0.44
     atomic_mass_unit = 1.6605e-27  # kg
     avg_atomic_weight = 0.61
     boltzmann_const = 1.3806e-23  # m^2 kg/(s^2 K)
-    dTdr = -grav_acc*nabla*avg_atomic_weight*atomic_mass_unit/boltzmann_const
+    dTdy = grav_acc*nabla*avg_atomic_weight*atomic_mass_unit/boltzmann_const
     y = np.linspace(4e6, 0, ny)
 
     def __init__(self):
         """
-        Define variables
+        Define & initialize arrays
+
+        Args:
+            (TwoDConvection): Instance of TwoDConvection. 
         """
         self.rho = np.empty((self.nx, self.ny), dtype=float)
+        self.rho_diff_t = np.empty((self.nx, self.ny), dtype=float)
+        self.rho_u_diff_t = np.empty((self.nx, self.ny), dtype=float)
+        self.rho_w_diff_t = np.empty((self.nx, self.ny), dtype=float)
+        self.e_diff_t = np.empty((self.nx, self.ny), dtype=float)
         self.T = np.empty((self.nx, self.ny), dtype=float)
         self.P = np.empty((self.nx, self.ny), dtype=float)
         self.e = np.empty((self.nx, self.ny), dtype=float)
@@ -36,51 +46,106 @@ class TwoDConvection:
         self.w = np.zeros((self.nx, self.ny), dtype=float)
         self.rho_u = np.zeros((self.nx, self.ny), dtype=float)
         self.rho_w = np.zeros((self.nx, self.ny), dtype=float)
+        self.i = 0
 
     def initialise(self):
         """
-        Initialise temperature, pressure, density and internal energy
+        Initialise temperature, pressure, density, and internal energy.
+
+        Args:
+            (TwoDConvection): Instance of TwoDConvection. 
         """
-        temp_1d = (self.grav_acc*self.atomic_mass_unit*self.avg_atomic_weight   
-                   * self.y/self.boltzmann_const + self.temp_sun)
-        self.T = np.tile(temp_1d[:, np.newaxis], (1, self.ny))
+        const1 = 1/(self.gamma - 1)
+        const2 = self.avg_atomic_weight*self.atomic_mass_unit * \
+            (self.gamma - 1)/self.boltzmann_const
+        temp_1d = (self.dTdy*self.y) + self.temp_sun
+        self.T = np.tile(temp_1d, (self.nx, 1))
         self.P = self.pressure_sun*(self.T/self.temp_sun)**(1/self.nabla)
-        self.rho = (self.P * self.atomic_mass_unit * self.avg_atomic_weight
-                    / (self.boltzmann_const * self.T))
-        self.e = self.P/(self.gamma - 1)
+        self.e = self.P * const1
+        self.rho = const2 * self.e / self.T
+
+        assert not np.any(np.isnan(self.T)), "Error: T contains NaN values"
+        assert not np.any(np.isnan(self.P)), "Error: P contains NaN values"
+        assert not np.any(np.isnan(self.rho)), "Error: rho contains NaN values"
+        assert not np.any(np.isnan(self.e)), "Error: e contains NaN values"
+        assert np.any(self.T > 0), "Error: T has zeros or negative vals"
+        assert np.any(self.P > 0), "Error: P has zeros or negative vals"
+        assert np.any(self.rho > 0), "Error: rho has zeros or negative vals"
+        assert np.any(self.e > 0), "Error: e has zero or negative vals"
+
+    def initialise_v2(self):
+        self.P[:, 0] = self.pressure_sun
+        self.T[:, 0] = self.temp_sun
 
     def timestep(self):
         """
-        Calculate timestep
+        Calculate timestep.
+
+        Args:
+            (TwoDConvection): Instance of TwoDConvection. 
         """
         p = 0.1
-        rel_rho = self.rho_diff_t/self.rho
-        rel_u = self.u_diff_t/self.u
-        rel_w = self.w_diff_t/self.w
-        rel_e = self.e_diff_t/self.e
-        delta = np.max(np.asarray([np.max(rel_rho), np.max(rel_u), np.max(rel_w), np.max(rel_e)]))
-        self.dt = p/delta
-        rel_x = self.u/self.dx
-        rel_y = self.w/self.dy
 
-
+        indices_1 = np.where(np.abs(self.u) > 1e-10)[0]
+        indices_2 = np.where(np.abs(self.w) > 1e-10)[0]
+        combined = np.concatenate((indices_1, indices_2))
+        indices = np.unique(combined)
+        if len(indices) != 0:
+            max_rel_rho_u = np.nanmax(
+                np.abs(self.rho_u_diff_t[indices] / self.rho[indices]))
+            max_rel_rho_w = np.nanmax(
+                np.abs(self.rho_w_diff_t[indices] / self.rho[indices]))
+            max_rel_rho = np.nanmax(
+                np.abs(self.rho_diff_t[indices] / self.rho[indices]))
+            max_rel_e = np.nanmax(
+                np.abs(self.e_diff_t[indices] / self.e[indices]))
+        else:
+            max_rel_rho_u = 0
+            max_rel_rho_w = 0
+            max_rel_rho = 0
+            max_rel_e = 0
+        max_rel_x = np.nanmax(np.abs(self.u / self.dx))
+        max_rel_y = np.nanmax(np.abs(self.w / self.dy))
+        delta = np.nanmax([max_rel_rho, max_rel_rho_u,
+                          max_rel_rho_w, max_rel_e, max_rel_x, max_rel_y])
+        if delta == 0:
+            delta = 1
+        self.dt = p / delta
+        if self.dt < 0.01:
+            self.dt = 0.01
+        assert not np.isnan(self.dt), "Error: self.dt is NaN"
+        assert np.isfinite(self.dt), "Error: self.dt is Inf"
 
     def boundary_conditions(self):
         """
-        Boundary conditions for energy, density and velocity
-        """
-        consts_factor = self.grav_acc*self.atomic_mass_unit*self.avg_atomic_weight/self.boltzmann_const
-        self.T[:, 0] = ((4*self.T[:, 1] - self.T[:, 2])/3 + 2*self.dy/3*consts_factor*self.nabla)
-        self.e[:, 0] = (2/(3 * self.dy) - consts_factor/self.T[:, 0])**(-1)*(4*self.e[:, 1] - self.e[:, 2])/(2*self.dy)
-        self.rho[:, 0] = self.e[:, 0]*(self.gamma - 1)*consts_factor/(self.grav_acc*self.T[:, 0])
-        self.T[:, -1] =  ((4*self.T[:, -2] - self.T[:, -3])/3 + 2*self.dy*consts_factor*self.nabla/3)
-        self.e[:, -1] = (3/(2*self.dy) + consts_factor/self.T[:, -1])**(-1)*(4*self.e[:, -2] - self.e[:, -3])/(2*self.dy)
-        self.rho[:, -1] = self.e[:, -1]*(self.gamma - 1)*consts_factor/(self.grav_acc*self.T[:, -1])
-        self.u[:, 0] = 0
-        self.u[:, -1] = 0
-        self.w[:, 0] = 0
-        self.w[:, -1] = 0
+        Boundary conditions for energy, density, and velocity.
+        assumes non-boundary energies are on timestep n+1
 
+        Args:
+            (TwoDConvection): Instance of TwoDConvection. 
+        """
+        consts = self.atomic_mass_unit*self.avg_atomic_weight * \
+            (self.gamma - 1)/self.boltzmann_const
+
+        dedy_top = -(self.e / self.T)[0, :]*self.grav_acc*self.atomic_mass_unit * \
+            self.avg_atomic_weight*(self.gamma - 1)/self.boltzmann_const
+        dedy_term_top = -2*self.dy*dedy_top/3
+        dedy_bot = -(self.e / self.T)[self.ny - 1, :]*self.grav_acc*self.atomic_mass_unit * \
+            self.avg_atomic_weight*(self.gamma - 1)/self.boltzmann_const
+        dedy_term_bot = 2*self.dy*dedy_bot/3
+
+        self.e[0, :] = dedy_term_top - self.e[2, :]/3 + 4*self.e[1, :]/3
+        self.e[-1, :] = dedy_term_bot + 4*self.e[-2, :]/3 - self.e[-3, :]/3
+        self.rho[0, :] = (self.e/self.T)[0, :]*consts
+        self.rho[-1, :] = (self.e/self.T)[-1, :]*consts
+        self.u[0, :] = 0
+        self.w[0, :] = 0
+        self.rho_u[0, :] = 0
+        self.rho_w[0, :] = 0
+        self.u[self.nx - 1, :] = 0
+        self.w[self.nx - 1, :] = 0
+        self.rho_u[self.nx - 1, :] = 0
+        self.rho_w[self.nx - 1, :] = 0
 
     def central_x(self, var):
         """
@@ -93,7 +158,10 @@ class TwoDConvection:
         """
         var_ip1 = np.roll(var, -1, 0)
         var_im1 = np.roll(var, 1, 0)
-        return (var_ip1 - var_im1)/(2*self.dx)
+        var_diff_x = (var_ip1 - var_im1)/(2*self.dx)
+        assert not np.any(np.isnan(var_diff_x)
+                          ), "Error: var_diff_x contains NaN values"
+        return var_diff_x[:, 1:-1]
 
     def central_y(self, var):
         """
@@ -105,11 +173,9 @@ class TwoDConvection:
                 central difference scheme in y-direction.
         """
         var_jp1 = np.roll(var, -1, 1)
-        var_jm1 = np.roll(var, 1, 0)
-        dvardy_ = (var_jp1 - var_jm1)/(2*self.dy)
-        dvardy = np.empty_like(var)
-        dvardy[:, 1:-1] = dvardy_[:, 1:-1]
-        return dvardy
+        var_jm1 = np.roll(var, 1, 1)
+        dvardy = (var_jp1 - var_jm1)/(2*self.dy)
+        return dvardy[:, 1:-1]
 
     def upwind_x(self, var, v):
         """
@@ -126,11 +192,14 @@ class TwoDConvection:
         """
         var_ip1 = np.roll(var, -1, 0)
         var_im1 = np.roll(var, 1, 0)
-        return np.where(
+        dvardx = np.where(
             v < 0,
-            (var_ip1 - var)/self.dx,
-            (var - var_im1)/self.dx
+            (var_ip1 - var) / self.dx,
+            (var - var_im1) / self.dx
         )
+        assert not np.any(
+            np.isnan(dvardx)), "Error: dvardx contains NaN values"
+        return dvardx[:, 1:-1]
 
     def upwind_y(self, var, v):
         """
@@ -148,42 +217,106 @@ class TwoDConvection:
         var_jp1 = np.roll(var, -1, 1)
         var_jm1 = np.roll(var, 1, 1)
         dvardy = np.empty_like(var)
-        dvardy_ = np.where(v < 0,
-                           (var_jp1 - var)/self.dy,
-                           (var - var_jm1)/self.dy
-                           )
-        dvardy[:, 1:-1] = dvardy_[:, 1:-1]
-        return dvardy
+        dvardy = np.where(v < 0,
+                          (var_jp1 - var)/self.dy,
+                          (var - var_jm1)/self.dy
+                          )
+        assert not np.any(
+            np.isnan(dvardy[:, 1:-1])), "Error: dvardy has unexpected NaN."
+        return dvardy[:, 1:-1]
 
     def hydro_solver(self):
         """
-        hydrodynamic equations solver
+        hydrodynamic equations solver.
+
+        Args:
+            (TwoDConvection): Instance of TwoDConvection. 
         """
-        self.initialise()
-        while True:
-            #self.boundary_conditions()
-            u_diff_x = self.central_x(self.u)
-            u_diff_y = self.central_y(self.u)
-            w_diff_x = self.central_x(self.w)
-            w_diff_y = self.central_y(self.w)
-            rho_diff_x = self.upwind_x(self.rho, self.u)
-            rho_diff_y = self.upwind_y(self.rho, self.w)   
-            rho_u_diff_x = self.upwind_x(self.rho_u, self.u)
-            rho_u_diff_y = self.upwind_y(self.rho_u, self.w)
-            rho_w_diff_x = self.upwind_x(self.rho_w, self.u)
-            rho_w_diff_y = self.upwind_y(self.rho_w, self.w)
-            P_diff_x = self.central_x(self.P)
-            P_diff_y = self.central_y(self.P)
-            self.rho_diff_t = -self.rho*(u_diff_x + w_diff_y) - self.u*rho_diff_x - self.w*rho_diff_y 
-            rho_u_diff_t = -self.rho_u*(u_diff_x + w_diff_y) - self.u*rho_u_diff_x  - self.w*rho_u_diff_y - P_diff_x
-            rho_w_diff_t = -self.rho_w(w_diff_x + u_diff_y) - self.w*rho_w_diff_x - self.u*rho_w_diff_y + self.rho*self.grav_acc
-            self.u_diff_t = rho_u_diff_t/self.rho
-            self.w_diff_t = rho_w_diff_t/self.rho
-            e_diff_x = self.upwind_x(self.e, self.u)
-            e_diff_y = self.upwind_y(self.e, self.w)
-            self.e_diff_t = -self.u*e_diff_x -self.w*e_diff_y - (self.P + self.e)*(u_diff_x + w_diff_y)
+        self.variable_checks()
 
+        """Continuity eq"""
+        rho_diff_x = self.upwind_x(self.rho, self.u)
+        rho_diff_y = self.upwind_y(self.rho, self.w)
+        u_diff_x = self.central_x(self.u)
+        w_diff_y = self.central_y(self.w)
+        self.rho_diff_t[:, 1:-1] = (-self.rho[:, 1:-1] * (u_diff_x + w_diff_y)
+                                    - self.u[:, 1:-1] * rho_diff_x - self.w[:, 1:-1] * rho_diff_y)
+        self.rho_diff_t[:, 0] = 0
+        self.rho_diff_t[:, -1] = 0
 
+        """Horizontal momentum eq"""
+        u_diff_x = self.upwind_x(self.u, self.u)
+        w_diff_y = self.central_y(self.w)
+        rho_u_diff_x = self.upwind_x(self.rho_u, self.u)
+        rho_u_diff_y = self.upwind_y(self.rho_u, self.w)
+        P_diff_x = self.central_x(self.P)
+        self.rho_u_diff_t[:, 1:-1] = -self.rho_u[:, 1:-1]*(
+            u_diff_x + w_diff_y) - self.u[:, 1:-1]*rho_u_diff_x - self.w[:, 1:-1]*rho_u_diff_y - P_diff_x
+        self.rho_u_diff_t[:, 0] = 0
+        self.rho_u_diff_t[:, -1] = 0
+
+        """Vertical momentum eq"""
+        w_diff_x = self.upwind_x(self.w, self.u)
+        u_diff_y = self.central_y(self.u)
+        rho_w_diff_x = self.upwind_x(self.rho_w, self.w)
+        rho_w_diff_y = self.upwind_y(self.rho_w, self.u)
+        P_diff_y = self.central_y(self.P)
+        self.rho_w_diff_t[:, 1:-1] = -self.rho_w[:, 1:-1]*(w_diff_x + u_diff_y) - self.w[:, 1:-1] * \
+            rho_w_diff_x - self.u[:, 1:-1]*rho_w_diff_y - \
+            P_diff_y - self.rho[:, 1:-1]*self.grav_acc
+        self.rho_w_diff_t[:, 0] = 0
+        self.rho_w_diff_t[:, -1] = 0
+
+        """Energy eq"""
+        e_diff_x = self.upwind_x(self.e, self.u)
+        e_diff_y = self.upwind_y(self.e, self.w)
+        u_diff_x = self.central_x(self.u)
+        w_diff_y = self.central_y(self.w)
+        self.e_diff_t[:, 1:-1] = -self.u[:, 1:-1]*e_diff_x - self.w[:, 1:-1] * \
+            e_diff_y - (self.e[:, 1:-1] + self.P[:, 1:-1]) * \
+            (u_diff_x + w_diff_y)
+        self.e_diff_t[:, 0] = 0
+        self.e_diff_t[:, -1] = 0
+
+        """Assign timestep, and advance quantities forward in time"""
+        self.timestep()
+        self.rho += self.rho_diff_t * self.dt
+        self.u = (self.rho_u + self.rho_u_diff_t * self.dt) / self.rho
+        self.w = (self.rho_w + self.rho_w_diff_t * self.dt) / self.rho
+        self.rho_u += self.rho_u_diff_t * self.dt
+        self.rho_w += self.rho_w_diff_t * self.dt
+        self.e += self.e_diff_t * self.dt
+
+        self.boundary_conditions()
+
+        factor = (self.avg_atomic_weight * self.atomic_mass_unit
+                  * (self.gamma - 1) / self.boltzmann_const)
+        self.T = self.e * factor / self.rho
+        self.P = (self.gamma - 1) * self.e
+        #print(f"{np.mean(self.rho)=:.4g},\t {np.mean(self.T)=:.4g},\t {np.mean(self.P)=:.4g},\t {np.mean(self.e)=:.4g}")
+        return self.dt
+
+    def variable_checks(self):
+        """
+        Verifies that various quantities behave as expected.
+
+        Args:
+            (TwoDConvection): Instance of TwoDConvection.
+        """
+        assert np.all(self.T > 0), "Error: T has zeros or negative vals"
+        assert np.all(self.P > 0), "Error: P has zeros or negative vals"
+        assert np.all(self.rho > 0), "Error: rho has zeros or negative vals"
+        assert np.all(self.e > 0), "Error: e has zero or negative vals"
+        assert not np.any(np.isnan(self.T)), "Error: T contains NaN values"
+        assert not np.any(np.isnan(self.P)), "Error: P contains NaN values"
+        assert not np.any(np.isnan(self.rho)), "Error: rho contains NaN values"
+        assert not np.any(np.isnan(self.e)), "Error: e contains NaN values"
+        assert not np.any(np.isnan(self.u)), "Error: u contains NaN values"
+        assert not np.any(np.isnan(self.w)), "Error: w contains NaN values"
+        assert not np.any(np.isnan(self.rho_u)
+                          ), "Error: rho_u contains NaN values"
+        assert not np.any(np.isnan(self.rho_w)
+                          ), "Error: rho_w contains NaN values"
 
     def plot_initialise(self):
         """
@@ -192,26 +325,26 @@ class TwoDConvection:
         self.initialise()
 
         fig, axs = plt.subplots(2, 2, figsize=(10, 8))
-
-        im1 = axs[0, 0].imshow(self.P, aspect='auto')
+        im1 = axs[0, 0].imshow(self.P.T, aspect='auto')
         axs[0, 0].set_xlabel('y')
         axs[0, 0].set_ylabel('x')
         axs[0, 0].set_title('Pressure (P)')
+
         fig.colorbar(im1, ax=axs[0, 0])
 
-        im2 = axs[0, 1].imshow(self.T, aspect='auto')
+        im2 = axs[0, 1].imshow(self.T.T, aspect='auto')
         axs[0, 1].set_xlabel('y')
         axs[0, 1].set_ylabel('x')
         axs[0, 1].set_title('Temperature (T)')
         fig.colorbar(im2, ax=axs[0, 1])
 
-        im3 = axs[1, 0].imshow(self.e, aspect='auto')
+        im3 = axs[1, 0].imshow(self.e.T, aspect='auto')
         axs[1, 0].set_xlabel('y')
         axs[1, 0].set_ylabel('x')
         axs[1, 0].set_title('Internal Energy (e)')
         fig.colorbar(im3, ax=axs[1, 0])
 
-        im4 = axs[1, 1].imshow(self.rho, aspect='auto')
+        im4 = axs[1, 1].imshow(self.rho.T, aspect='auto')
         axs[1, 1].set_xlabel('y')
         axs[1, 1].set_ylabel('x')
         axs[1, 1].set_title('Density (rho)')
@@ -221,8 +354,67 @@ class TwoDConvection:
         plt.show()
 
 
-if __name__ == '__main__':
-    # Run your code here
+def plot_initial():
     instance = TwoDConvection()
     instance.initialise()
     instance.plot_initialise()
+
+
+def sim_xs():
+    instance = TwoDConvection()
+    instance.initialise()
+    vis = FVis.FluidVisualiser()
+    vis.save_data(110, instance.hydro_solver,
+                  rho=instance.rho.T,
+                  T=instance.T.T,
+                  u=instance.u.T,
+                  w=instance.w.T,
+                  P=instance.P.T,
+                  e=instance.e.T,
+                  sim_fps=30,
+                  folder='xs')
+    #vis.animate_2D('T', save=True)
+    vis.animate_2D('rho', save=True)
+    #vis.animate_2D('e', save=True)
+    #vis.animate_2D('P', save=True)
+
+
+def sanity_check():
+    instance = TwoDConvection()
+    instance.initialise()
+    vis = FVis.FluidVisualiser()
+    vis.save_data(60, instance.hydro_solver,
+                  rho=instance.rho.T,
+                  T=instance.T.T,
+                  u=instance.u.T,
+                  w=instance.w.T,
+                  P=instance.P.T,
+                  e=instance.e.T,
+                  sim_fps=30,
+                  folder='60s')
+    vis.animate_2D('T', save=True)
+    vis.animate_2D('rho', save=True)
+    vis.animate_2D('e', save=True)
+    vis.animate_2D('P', save=True)
+
+
+def debug():
+    vis = FVis.FluidVisualiser()
+    vis.plot_avg('T', folder='FVis_output_2023-05-29_13-30')
+
+
+def hydro_solver_test():
+    instance = TwoDConvection()
+    instance.initialise()
+    dt = instance.hydro_solver()
+    print(f"{dt=:.4g}")
+
+
+if __name__ == '__main__':
+    # Run your code here
+    sanity_check()
+    #sim_xs()
+    #run_data()
+    #hydro_solver_test()
+    #plot_initial()
+    #debug()
