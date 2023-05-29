@@ -3,6 +3,7 @@ import FVis3 as FVis
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import multivariate_normal
 
 
 class TwoDConvection:
@@ -25,7 +26,7 @@ class TwoDConvection:
     avg_atomic_weight = 0.61
     boltzmann_const = 1.3806e-23  # m^2 kg/(s^2 K)
     dTdy = grav_acc*nabla*avg_atomic_weight*atomic_mass_unit/boltzmann_const
-    y = np.linspace(4e6, 0, ny)
+    y = np.linspace(0, y_max, ny)
 
     def __init__(self):
         """
@@ -46,20 +47,22 @@ class TwoDConvection:
         self.w = np.zeros((self.nx, self.ny), dtype=float)
         self.rho_u = np.zeros((self.nx, self.ny), dtype=float)
         self.rho_w = np.zeros((self.nx, self.ny), dtype=float)
-        self.i = 0
+        self.temperature_pertubation = np.zeros(
+            (self.nx, self.ny), dtype=float)
 
     def initialise(self):
         """
         Initialise temperature, pressure, density, and internal energy.
 
         Args:
-            (TwoDConvection): Instance of TwoDConvection. 
+            self (TwoDConvection): Instance of TwoDConvection. 
         """
         const1 = 1/(self.gamma - 1)
-        const2 = self.avg_atomic_weight*self.atomic_mass_unit * \
-            (self.gamma - 1)/self.boltzmann_const
-        temp_1d = (self.dTdy*self.y) + self.temp_sun
+        const2 = (self.avg_atomic_weight*self.atomic_mass_unit
+                  * (self.gamma - 1)/self.boltzmann_const)
+        temp_1d = (self.dTdy*(self.y_max - self.y)) + self.temp_sun
         self.T = np.tile(temp_1d, (self.nx, 1))
+        self.T += self.temperature_pertubation
         self.P = self.pressure_sun*(self.T/self.temp_sun)**(1/self.nabla)
         self.e = self.P * const1
         self.rho = const2 * self.e / self.T
@@ -73,16 +76,12 @@ class TwoDConvection:
         assert np.any(self.rho > 0), "Error: rho has zeros or negative vals"
         assert np.any(self.e > 0), "Error: e has zero or negative vals"
 
-    def initialise_v2(self):
-        self.P[:, 0] = self.pressure_sun
-        self.T[:, 0] = self.temp_sun
-
     def timestep(self):
         """
         Calculate timestep.
 
         Args:
-            (TwoDConvection): Instance of TwoDConvection. 
+            self (TwoDConvection): Instance of TwoDConvection. 
         """
         p = 0.1
 
@@ -111,7 +110,7 @@ class TwoDConvection:
         if delta == 0:
             delta = 1
         self.dt = p / delta
-        if self.dt < 0.01:
+        if self.dt < 0.1:
             self.dt = 0.01
         assert not np.isnan(self.dt), "Error: self.dt is NaN"
         assert np.isfinite(self.dt), "Error: self.dt is Inf"
@@ -119,10 +118,9 @@ class TwoDConvection:
     def boundary_conditions(self):
         """
         Boundary conditions for energy, density, and velocity.
-        assumes non-boundary energies are on timestep n+1
 
         Args:
-            (TwoDConvection): Instance of TwoDConvection. 
+            self (TwoDConvection): Instance of TwoDConvection. 
         """
         consts = self.atomic_mass_unit*self.avg_atomic_weight * \
             (self.gamma - 1)/self.boltzmann_const
@@ -152,7 +150,7 @@ class TwoDConvection:
         Central difference scheme in x-direction.
 
         Args:
-            (TwoDConvection): Instance of TwoDConvection. 
+            self (TwoDConvection): Instance of TwoDConvection. 
             var (numpy.ndarray[float]): Array for quantity to be advanced with
                 central difference scheme in x-direction.
         """
@@ -320,7 +318,7 @@ class TwoDConvection:
 
     def plot_initialise(self):
         """
-        Plots initials
+        Plots initial.
         """
         self.initialise()
 
@@ -353,18 +351,49 @@ class TwoDConvection:
         fig.tight_layout()
         plt.show()
 
+    def add_temperature_pertubation(self, temperature_peak, x0, y0, spread_x, spread_y):
+        """
+        Returns 2Dim Gaussian function grid with specified parameters.
+
+        Args:
+            temperature_peak (float): Temperature pertubation peak value.
+            x0 (float): X-position for pertubation peak
+            y0 (float): Y-position for pertubation peak
+            spread_x (float): spread in x-direction
+            spread_y (float): spread in y-direction
+
+        Returns:
+            (numpy.ndarray[float]): Gaussian temperature pertubation
+        """
+        x_ = np.linspace(0, 12e6, self.nx)
+        y_ = np.linspace(0, 4e6, self.ny)
+        y, x = np.meshgrid(y_, x_)
+        self.temperature_pertubation += temperature_peak * \
+            np.exp(- ((x - x0)**2/(2*spread_x**2) + (y-y0)**2/(2*spread_y**2)))
+
 
 def plot_initial():
+    """
+    Show initialized grid
+    """
     instance = TwoDConvection()
     instance.initialise()
     instance.plot_initialise()
 
 
-def sim_xs():
+def simulate(sim_duration):
+    """
+    Run simulation for sim_duration seconds.
+    
+    Args:
+        sim_duration (int): duration for which to run simulation.
+    """
+    assert isinstance(sim_duration, int), "non-integer sim_duration provided"
+    assert sim_duration > 0, "zero or non-positive sim_duration provided"
     instance = TwoDConvection()
     instance.initialise()
     vis = FVis.FluidVisualiser()
-    vis.save_data(110, instance.hydro_solver,
+    vis.save_data(sim_duration, instance.hydro_solver,
                   rho=instance.rho.T,
                   T=instance.T.T,
                   u=instance.u.T,
@@ -372,7 +401,7 @@ def sim_xs():
                   P=instance.P.T,
                   e=instance.e.T,
                   sim_fps=30,
-                  folder='xs')
+                  folder='{sim_duration}s')
     #vis.animate_2D('T', save=True)
     vis.animate_2D('rho', save=True)
     #vis.animate_2D('e', save=True)
@@ -380,6 +409,9 @@ def sim_xs():
 
 
 def sanity_check():
+    """
+    Run simulation for 60s with no pertubations.
+    """
     instance = TwoDConvection()
     instance.initialise()
     vis = FVis.FluidVisualiser()
@@ -392,29 +424,61 @@ def sanity_check():
                   e=instance.e.T,
                   sim_fps=30,
                   folder='60s')
-    vis.animate_2D('T', save=True)
-    vis.animate_2D('rho', save=True)
-    vis.animate_2D('e', save=True)
-    vis.animate_2D('P', save=True)
+    vis.animate_2D('T', save=True, video_name="60s_T")
+    vis.animate_2D('rho', save=True, video_name="60s_rho")
+    vis.animate_2D('e', save=True, video_name="60s_e")
+    vis.animate_2D('P', save=True, video_name="60s_P")
 
 
-def debug():
-    vis = FVis.FluidVisualiser()
-    vis.plot_avg('T', folder='FVis_output_2023-05-29_13-30')
+def simulate_single_pertubation(sim_duration):
+    """
+    Run simulation for sim_duration s with single pertubation.
 
-
-def hydro_solver_test():
+    Args:
+        sim_duration (int): duration for which to run simulation
+    """
+    assert isinstance(sim_duration, int), "non-integer sim_duration provided"
+    assert sim_duration > 0, "zero or non-positive sim_duration provided"
     instance = TwoDConvection()
+    instance.add_temperature_pertubation(
+        temperature_peak=20000,
+        x0=6e6,
+        y0=2e6,
+        spread_x=1e5,
+        spread_y=1e5
+    )
     instance.initialise()
-    dt = instance.hydro_solver()
-    print(f"{dt=:.4g}")
+    instance.plot_initialise()
+    vis = FVis.FluidVisualiser()
+    vis.save_data(sim_duration, instance.hydro_solver,
+                  rho=instance.rho.T,
+                  T=instance.T.T,
+                  u=instance.u.T,
+                  w=instance.w.T,
+                  P=instance.P.T,
+                  e=instance.e.T,
+                  sim_fps=30,
+                  folder='single_pertubation')
+    vis.animate_2D('T', save=True, video_name="60s_T_with_single_pertubation")
+
+
+def plot_initial_single_pertubation():
+    instance = TwoDConvection()
+    instance.add_temperature_pertubation(
+        temperature_peak=20000,
+        x0=6e6,
+        y0=2e6,
+        spread_x=1e5,
+        spread_y=1e5
+    )
+    instance.initialise()
+    instance.plot_initialise()
 
 
 if __name__ == '__main__':
     # Run your code here
-    sanity_check()
-    #sim_xs()
-    #run_data()
-    #hydro_solver_test()
+    #sanity_check()
+    simulate_single_pertubation(200)
+    #plot_initial_single_pertubation()
+    #simulate()
     #plot_initial()
-    #debug()
