@@ -125,28 +125,28 @@ class TwoDConvection:
         Args:
             self (TwoDConvection): Instance of TwoDConvection. 
         """
-        consts = self.atomic_mass_unit*self.avg_atomic_weight * \
-            (self.gamma - 1)/self.boltzmann_const
+        consts = self.atomic_mass_unit * self.avg_atomic_weight * \
+            (self.gamma - 1) / self.boltzmann_const
 
-        dedy_top = -(self.e / self.T)[0, :]*self.grav_acc*self.atomic_mass_unit * \
-            self.avg_atomic_weight*(self.gamma - 1)/self.boltzmann_const
-        dedy_term_top = -2*self.dy*dedy_top/3
-        dedy_bot = -(self.e / self.T)[self.ny - 1, :]*self.grav_acc*self.atomic_mass_unit * \
-            self.avg_atomic_weight*(self.gamma - 1)/self.boltzmann_const
-        dedy_term_bot = 2*self.dy*dedy_bot/3
+        dedy_top = -(self.e / self.T)[:, 0] * self.grav_acc * self.atomic_mass_unit * \
+            self.avg_atomic_weight * (self.gamma - 1) / self.boltzmann_const
+        dedy_term_top = -2 * self.dy * dedy_top / 3
+        dedy_bot = -(self.e / self.T)[:, -1] * self.grav_acc * self.atomic_mass_unit * \
+            self.avg_atomic_weight * (self.gamma - 1) / self.boltzmann_const
+        dedy_term_bot = 2 * self.dy * dedy_bot / 3
 
-        self.e[0, :] = dedy_term_top - self.e[2, :]/3 + 4*self.e[1, :]/3
-        self.e[-1, :] = dedy_term_bot + 4*self.e[-2, :]/3 - self.e[-3, :]/3
-        self.rho[0, :] = (self.e/self.T)[0, :]*consts
-        self.rho[-1, :] = (self.e/self.T)[-1, :]*consts
-        self.u[0, :] = 0
-        self.w[0, :] = 0
-        self.rho_u[0, :] = 0
-        self.rho_w[0, :] = 0
-        self.u[self.nx - 1, :] = 0
-        self.w[self.nx - 1, :] = 0
-        self.rho_u[self.nx - 1, :] = 0
-        self.rho_w[self.nx - 1, :] = 0
+        self.e[:, 0] = dedy_term_top - self.e[:, 2] / 3 + 4 * self.e[:, 1] / 3
+        self.e[:, -1] = dedy_term_bot + 4 * self.e[:, -2] / 3 - self.e[:, -3] / 3
+        self.rho[:, 0] = (self.e / self.T)[:, 0] * consts
+        self.rho[:, -1] = (self.e / self.T)[:, -1] * consts
+        self.u[:, 0] = 4 * self.u[:, 1] / 3 - self.u[:, 2] / 3
+        self.w[:, 0] = 0
+        self.rho_u[:, 0] = 0
+        self.rho_w[:, 0] = 0
+        self.u[:, -1] = 4 * self.u[:, -2] / 3 - self.u[:, -3] / 3
+        self.w[:, -1] = 0
+
+
 
     def central_x(self, var):
         """
@@ -173,8 +173,8 @@ class TwoDConvection:
         """
         var_jp1 = np.roll(var, -1, 1)
         var_jm1 = np.roll(var, 1, 1)
-        dvardy = (var_jp1 - var_jm1)/(2*self.dy)
-        return dvardy[:, 1:-1]
+        var_diff_y = (var_jp1 - var_jm1)/(2*self.dy)
+        return var_diff_y[:, 1:-1]
 
     def upwind_x(self, var, v):
         """
@@ -191,12 +191,12 @@ class TwoDConvection:
         """
         var_ip1 = np.roll(var, -1, 0)
         var_im1 = np.roll(var, 1, 0)
-        dvardx = np.where(
+        var_diff_x = np.where(
             v < 0,
             (var_ip1 - var) / self.dx,
             (var - var_im1) / self.dx
         )
-        return dvardx[:, 1:-1]
+        return var_diff_x[:, 1:-1]
 
     def upwind_y(self, var, v):
         """
@@ -213,12 +213,11 @@ class TwoDConvection:
         """
         var_jp1 = np.roll(var, -1, 1)
         var_jm1 = np.roll(var, 1, 1)
-        dvardy = np.empty_like(var)
-        dvardy = np.where(v < 0,
+        var_diff_y = np.where(v < 0,
                           (var_jp1 - var)/self.dy,
                           (var - var_jm1)/self.dy
                           )
-        return dvardy[:, 1:-1]
+        return var_diff_y[:, 1:-1]
 
     def hydro_solver(self):
         """
@@ -363,7 +362,7 @@ class TwoDConvection:
         fig.colorbar(im4, ax=axs[1, 1])
 
         fig.tight_layout()
-        plt.show()
+        return fig
 
     def add_temperature_pertubation(self, temperature_peak, x0, y0, spread_x, spread_y):
         """
@@ -392,7 +391,8 @@ def plot_initial():
     """
     instance = TwoDConvection()
     instance.initialise()
-    instance.plot_initialise()
+    fig = instance.plot_initialise()
+    fig.savefig("initial_grid.pdf")
 
 
 def simulate(sim_duration):
@@ -444,6 +444,35 @@ def sanity_check():
     #vis.animate_2D('P', save=True, video_name="60s_P")
 
 
+def plot_initial_single_pertubation():
+    """
+    show initialized grid with temperature pertubation.
+    """
+    instance = TwoDConvection()
+    instance.add_temperature_pertubation(
+        temperature_peak=5000,
+        x0=6e6,
+        y0=2e6,
+        spread_x=1e6,
+        spread_y=1e6
+    )
+    instance.initialise()
+    fig = instance.plot_initialise()
+    fig.savefig("initial_grid_with_pertubation.pdf")
+
+def animate_quantity(vis, quantity, sim_duration):
+    """
+    Generates 2D animation for quantity
+    
+    Args:
+        vis (FVis.FluidVisualizer): Instance of FluidVisualizer
+        quantity (str): Name of quantity to be simulated.
+        sim_duration (float): Duration of simulation.
+    """
+    vis.animate_2D(quantity, save=True, video_name=f"{sim_duration}s_{quantity}_with_single_pertubation")
+
+
+
 def simulate_single_pertubation(sim_duration):
     """
     Run simulation for sim_duration s with single pertubation.
@@ -455,11 +484,11 @@ def simulate_single_pertubation(sim_duration):
     assert sim_duration > 0, "zero or non-positive sim_duration provided"
     instance = TwoDConvection()
     instance.add_temperature_pertubation(
-        temperature_peak=20000,
+        temperature_peak=5000,
         x0=6e6,
         y0=2e6,
-        spread_x=1e5,
-        spread_y=1e5
+        spread_x=3e5,
+        spread_y=3e5
     )
     instance.initialise()
     vis = FVis.FluidVisualiser()
@@ -470,34 +499,24 @@ def simulate_single_pertubation(sim_duration):
                   w=instance.w.T,
                   P=instance.P.T,
                   e=instance.e.T,
-                  sim_fps=30,
+                  sim_fps=5,
                   folder=f'{sim_duration}s_single_pertubation')
-    vis.animate_2D('T', save=True, video_name=f"{sim_duration}s_T_with_single_pertubation")
-
-
-def plot_initial_single_pertubation():
     """
-    show initialized grid with temperature pertubation.
+    quantities = ["T", "rho", "P", "e"]
+    for quantity in quantities:
+        animate_quantity(vis, quantity, sim_duration)
     """
-    instance = TwoDConvection()
-    instance.add_temperature_pertubation(
-        temperature_peak=20000,
-        x0=6e6,
-        y0=2e6,
-        spread_x=1e5,
-        spread_y=1e5
-    )
-    instance.initialise()
-    instance.plot_initialise()
+    animate_quantity(vis, 'T', sim_duration)
+
 
 
 if __name__ == '__main__':
     """
-    uncomment to decide what the code does, refer to the docstrings
+    uncomment to decide what the code does, refer to the docstrings.
     """
     # Run your code here
     #plot_initial()
     #sanity_check()
-    simulate_single_pertubation(200)
+    simulate_single_pertubation(201)
     #plot_initial_single_pertubation()
     #simulate()
