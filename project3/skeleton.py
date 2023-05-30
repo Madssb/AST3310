@@ -1,6 +1,6 @@
 # visualiser
 import FVis3 as FVis
-
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import multivariate_normal
@@ -45,10 +45,13 @@ class TwoDConvection:
         self.e = np.empty((self.nx, self.ny), dtype=float)
         self.u = np.zeros((self.nx, self.ny), dtype=float)
         self.w = np.zeros((self.nx, self.ny), dtype=float)
+        self.u = np.random.uniform(-1,1,size=(self.nx,self.ny))
+        self.w = np.random.uniform(-1,1,size=(self.nx,self.ny))
         self.rho_u = np.zeros((self.nx, self.ny), dtype=float)
         self.rho_w = np.zeros((self.nx, self.ny), dtype=float)
         self.temperature_pertubation = np.zeros(
             (self.nx, self.ny), dtype=float)
+        self.t = 0
 
     def initialise(self):
         """
@@ -62,8 +65,8 @@ class TwoDConvection:
                   * (self.gamma - 1)/self.boltzmann_const)
         temp_1d = (self.dTdy*(self.y_max - self.y)) + self.temp_sun
         self.T = np.tile(temp_1d, (self.nx, 1))
-        self.T += self.temperature_pertubation
         self.P = self.pressure_sun*(self.T/self.temp_sun)**(1/self.nabla)
+        self.T += self.temperature_pertubation
         self.e = self.P * const1
         self.rho = const2 * self.e / self.T
 
@@ -111,7 +114,7 @@ class TwoDConvection:
             delta = 1
         self.dt = p / delta
         if self.dt < 0.1:
-            self.dt = 0.01
+            self.dt = 0.1
         assert not np.isnan(self.dt), "Error: self.dt is NaN"
         assert np.isfinite(self.dt), "Error: self.dt is Inf"
 
@@ -157,8 +160,6 @@ class TwoDConvection:
         var_ip1 = np.roll(var, -1, 0)
         var_im1 = np.roll(var, 1, 0)
         var_diff_x = (var_ip1 - var_im1)/(2*self.dx)
-        assert not np.any(np.isnan(var_diff_x)
-                          ), "Error: var_diff_x contains NaN values"
         return var_diff_x[:, 1:-1]
 
     def central_y(self, var):
@@ -195,8 +196,6 @@ class TwoDConvection:
             (var_ip1 - var) / self.dx,
             (var - var_im1) / self.dx
         )
-        assert not np.any(
-            np.isnan(dvardx)), "Error: dvardx contains NaN values"
         return dvardx[:, 1:-1]
 
     def upwind_y(self, var, v):
@@ -219,8 +218,6 @@ class TwoDConvection:
                           (var_jp1 - var)/self.dy,
                           (var - var_jm1)/self.dy
                           )
-        assert not np.any(
-            np.isnan(dvardy[:, 1:-1])), "Error: dvardy has unexpected NaN."
         return dvardy[:, 1:-1]
 
     def hydro_solver(self):
@@ -231,7 +228,6 @@ class TwoDConvection:
             (TwoDConvection): Instance of TwoDConvection. 
         """
         self.variable_checks()
-
         """Continuity eq"""
         rho_diff_x = self.upwind_x(self.rho, self.u)
         rho_diff_y = self.upwind_y(self.rho, self.w)
@@ -278,19 +274,20 @@ class TwoDConvection:
 
         """Assign timestep, and advance quantities forward in time"""
         self.timestep()
-        self.rho += self.rho_diff_t * self.dt
-        self.u = (self.rho_u + self.rho_u_diff_t * self.dt) / self.rho
-        self.w = (self.rho_w + self.rho_w_diff_t * self.dt) / self.rho
-        self.rho_u += self.rho_u_diff_t * self.dt
-        self.rho_w += self.rho_w_diff_t * self.dt
-        self.e += self.e_diff_t * self.dt
+        self.rho[:] += self.rho_diff_t * self.dt
+        self.u[:] = (self.rho_u + self.rho_u_diff_t * self.dt) / self.rho
+        self.w[:] = (self.rho_w + self.rho_w_diff_t * self.dt) / self.rho
+        self.rho_u[:] += self.rho_u_diff_t * self.dt
+        self.rho_w[:] += self.rho_w_diff_t * self.dt
+        self.e[:] += self.e_diff_t * self.dt
 
         self.boundary_conditions()
 
         factor = (self.avg_atomic_weight * self.atomic_mass_unit
                   * (self.gamma - 1) / self.boltzmann_const)
-        self.T = self.e * factor / self.rho
-        self.P = (self.gamma - 1) * self.e
+        self.T[:] = self.e * factor / self.rho
+        self.P[:] = (self.gamma - 1) * self.e
+        self.t += self.dt
         #print(f"{np.mean(self.rho)=:.4g},\t {np.mean(self.T)=:.4g},\t {np.mean(self.P)=:.4g},\t {np.mean(self.e)=:.4g}")
         return self.dt
 
@@ -301,20 +298,37 @@ class TwoDConvection:
         Args:
             (TwoDConvection): Instance of TwoDConvection.
         """
-        assert np.all(self.T > 0), "Error: T has zeros or negative vals"
-        assert np.all(self.P > 0), "Error: P has zeros or negative vals"
-        assert np.all(self.rho > 0), "Error: rho has zeros or negative vals"
-        assert np.all(self.e > 0), "Error: e has zero or negative vals"
-        assert not np.any(np.isnan(self.T)), "Error: T contains NaN values"
-        assert not np.any(np.isnan(self.P)), "Error: P contains NaN values"
-        assert not np.any(np.isnan(self.rho)), "Error: rho contains NaN values"
-        assert not np.any(np.isnan(self.e)), "Error: e contains NaN values"
-        assert not np.any(np.isnan(self.u)), "Error: u contains NaN values"
-        assert not np.any(np.isnan(self.w)), "Error: w contains NaN values"
-        assert not np.any(np.isnan(self.rho_u)
-                          ), "Error: rho_u contains NaN values"
-        assert not np.any(np.isnan(self.rho_w)
-                          ), "Error: rho_w contains NaN values"
+        try:
+            assert np.all(self.rho > 0), "Error: rho has zeros or negative vals"
+            assert np.all(self.e > 0), "Error: e has zero or negative vals"
+            assert np.all(self.T > 0), "Error: T has zeros or negative vals"
+            assert np.all(self.P > 0), "Error: P has zeros or negative vals"
+            assert not np.any(np.isnan(self.T)), "Error: T contains NaN values"
+            assert not np.any(np.isnan(self.P)), "Error: P contains NaN values"
+            assert not np.any(np.isnan(self.rho)), "Error: rho contains NaN values"
+            assert not np.any(np.isnan(self.e)), "Error: e contains NaN values"
+            assert not np.any(np.isnan(self.u)), "Error: u contains NaN values"
+            assert not np.any(np.isnan(self.w)), "Error: w contains NaN values"
+            assert not np.any(np.isnan(self.rho_u)
+                            ), "Error: rho_u contains NaN values"
+            assert not np.any(np.isnan(self.rho_w)
+                            ), "Error: rho_w contains NaN values"
+        except AssertionError:
+            print(f"{self.t=}")
+            assert np.all(self.rho > 0), "Error: rho has zeros or negative vals"
+            assert np.all(self.e > 0), "Error: e has zero or negative vals"
+            assert np.all(self.T > 0), "Error: T has zeros or negative vals"
+            assert np.all(self.P > 0), "Error: P has zeros or negative vals"
+            assert not np.any(np.isnan(self.T)), "Error: T contains NaN values"
+            assert not np.any(np.isnan(self.P)), "Error: P contains NaN values"
+            assert not np.any(np.isnan(self.rho)), "Error: rho contains NaN values"
+            assert not np.any(np.isnan(self.e)), "Error: e contains NaN values"
+            assert not np.any(np.isnan(self.u)), "Error: u contains NaN values"
+            assert not np.any(np.isnan(self.w)), "Error: w contains NaN values"
+            assert not np.any(np.isnan(self.rho_u)
+                            ), "Error: rho_u contains NaN values"
+            assert not np.any(np.isnan(self.rho_w)
+                            ), "Error: rho_w contains NaN values"
 
     def plot_initialise(self):
         """
@@ -374,7 +388,7 @@ class TwoDConvection:
 
 def plot_initial():
     """
-    Show initialized grid
+    Show initialized grids without temperature pertubations.
     """
     instance = TwoDConvection()
     instance.initialise()
@@ -425,9 +439,9 @@ def sanity_check():
                   sim_fps=30,
                   folder='60s')
     vis.animate_2D('T', save=True, video_name="60s_T")
-    vis.animate_2D('rho', save=True, video_name="60s_rho")
-    vis.animate_2D('e', save=True, video_name="60s_e")
-    vis.animate_2D('P', save=True, video_name="60s_P")
+    #vis.animate_2D('rho', save=True, video_name="60s_rho")
+    #vis.animate_2D('e', save=True, video_name="60s_e")
+    #vis.animate_2D('P', save=True, video_name="60s_P")
 
 
 def simulate_single_pertubation(sim_duration):
@@ -448,7 +462,6 @@ def simulate_single_pertubation(sim_duration):
         spread_y=1e5
     )
     instance.initialise()
-    instance.plot_initialise()
     vis = FVis.FluidVisualiser()
     vis.save_data(sim_duration, instance.hydro_solver,
                   rho=instance.rho.T,
@@ -458,11 +471,14 @@ def simulate_single_pertubation(sim_duration):
                   P=instance.P.T,
                   e=instance.e.T,
                   sim_fps=30,
-                  folder='single_pertubation')
-    vis.animate_2D('T', save=True, video_name="60s_T_with_single_pertubation")
+                  folder=f'{sim_duration}s_single_pertubation')
+    vis.animate_2D('T', save=True, video_name=f"{sim_duration}s_T_with_single_pertubation")
 
 
 def plot_initial_single_pertubation():
+    """
+    show initialized grid with temperature pertubation.
+    """
     instance = TwoDConvection()
     instance.add_temperature_pertubation(
         temperature_peak=20000,
@@ -476,9 +492,12 @@ def plot_initial_single_pertubation():
 
 
 if __name__ == '__main__':
+    """
+    uncomment to decide what the code does, refer to the docstrings
+    """
     # Run your code here
+    #plot_initial()
     #sanity_check()
     simulate_single_pertubation(200)
     #plot_initial_single_pertubation()
     #simulate()
-    #plot_initial()
