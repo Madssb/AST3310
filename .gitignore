@@ -3,5 +3,6 @@ project1.py
 *.txt
 *.mp4
 *.pas
+*.png
 project3/FVis3.py
 project3/__pycache__/FVis3.cpython-38.pyc

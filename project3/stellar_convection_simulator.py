@@ -1,9 +1,11 @@
 # visualiser
 import FVis3 as FVis
-import sys
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import multivariate_normal
+
+
 
 
 class TwoDConvection:
@@ -45,11 +47,11 @@ class TwoDConvection:
         self.e = np.empty((self.nx, self.ny), dtype=float)
         self.u = np.zeros((self.nx, self.ny), dtype=float)
         self.w = np.zeros((self.nx, self.ny), dtype=float)
-        self.u = np.random.uniform(-1,1,size=(self.nx,self.ny))
-        self.w = np.random.uniform(-1,1,size=(self.nx,self.ny))
+        self.u = np.random.uniform(-1, 1, size=(self.nx, self.ny))
+        self.w = np.random.uniform(-1, 1, size=(self.nx, self.ny))
         self.rho_u = np.zeros((self.nx, self.ny), dtype=float)
         self.rho_w = np.zeros((self.nx, self.ny), dtype=float)
-        self.temperature_pertubation = np.zeros(
+        self.temperature_perturbation = np.zeros(
             (self.nx, self.ny), dtype=float)
         self.t = 0
 
@@ -66,7 +68,7 @@ class TwoDConvection:
         temp_1d = (self.dTdy*(self.y_max - self.y)) + self.temp_sun
         self.T = np.tile(temp_1d, (self.nx, 1))
         self.P = self.pressure_sun*(self.T/self.temp_sun)**(1/self.nabla)
-        self.T += self.temperature_pertubation
+        self.T += self.temperature_perturbation
         self.e = self.P * const1
         self.rho = const2 * self.e / self.T
 
@@ -136,7 +138,8 @@ class TwoDConvection:
         dedy_term_bot = 2 * self.dy * dedy_bot / 3
 
         self.e[:, 0] = dedy_term_top - self.e[:, 2] / 3 + 4 * self.e[:, 1] / 3
-        self.e[:, -1] = dedy_term_bot + 4 * self.e[:, -2] / 3 - self.e[:, -3] / 3
+        self.e[:, -1] = dedy_term_bot + 4 * \
+            self.e[:, -2] / 3 - self.e[:, -3] / 3
         self.rho[:, 0] = (self.e / self.T)[:, 0] * consts
         self.rho[:, -1] = (self.e / self.T)[:, -1] * consts
         self.u[:, 0] = 4 * self.u[:, 1] / 3 - self.u[:, 2] / 3
@@ -145,8 +148,6 @@ class TwoDConvection:
         self.rho_w[:, 0] = 0
         self.u[:, -1] = 4 * self.u[:, -2] / 3 - self.u[:, -3] / 3
         self.w[:, -1] = 0
-
-
 
     def central_x(self, var):
         """
@@ -214,9 +215,9 @@ class TwoDConvection:
         var_jp1 = np.roll(var, -1, 1)
         var_jm1 = np.roll(var, 1, 1)
         var_diff_y = np.where(v < 0,
-                          (var_jp1 - var)/self.dy,
-                          (var - var_jm1)/self.dy
-                          )
+                              (var_jp1 - var)/self.dy,
+                              (var - var_jm1)/self.dy
+                              )
         return var_diff_y[:, 1:-1]
 
     def hydro_solver(self):
@@ -298,36 +299,40 @@ class TwoDConvection:
             (TwoDConvection): Instance of TwoDConvection.
         """
         try:
-            assert np.all(self.rho > 0), "Error: rho has zeros or negative vals"
+            assert np.all(
+                self.rho > 0), "Error: rho has zeros or negative vals"
             assert np.all(self.e > 0), "Error: e has zero or negative vals"
             assert np.all(self.T > 0), "Error: T has zeros or negative vals"
             assert np.all(self.P > 0), "Error: P has zeros or negative vals"
             assert not np.any(np.isnan(self.T)), "Error: T contains NaN values"
             assert not np.any(np.isnan(self.P)), "Error: P contains NaN values"
-            assert not np.any(np.isnan(self.rho)), "Error: rho contains NaN values"
+            assert not np.any(np.isnan(self.rho)
+                              ), "Error: rho contains NaN values"
             assert not np.any(np.isnan(self.e)), "Error: e contains NaN values"
             assert not np.any(np.isnan(self.u)), "Error: u contains NaN values"
             assert not np.any(np.isnan(self.w)), "Error: w contains NaN values"
             assert not np.any(np.isnan(self.rho_u)
-                            ), "Error: rho_u contains NaN values"
+                              ), "Error: rho_u contains NaN values"
             assert not np.any(np.isnan(self.rho_w)
-                            ), "Error: rho_w contains NaN values"
+                              ), "Error: rho_w contains NaN values"
         except AssertionError:
             print(f"{self.t=}")
-            assert np.all(self.rho > 0), "Error: rho has zeros or negative vals"
+            assert np.all(
+                self.rho > 0), "Error: rho has zeros or negative vals"
             assert np.all(self.e > 0), "Error: e has zero or negative vals"
             assert np.all(self.T > 0), "Error: T has zeros or negative vals"
             assert np.all(self.P > 0), "Error: P has zeros or negative vals"
             assert not np.any(np.isnan(self.T)), "Error: T contains NaN values"
             assert not np.any(np.isnan(self.P)), "Error: P contains NaN values"
-            assert not np.any(np.isnan(self.rho)), "Error: rho contains NaN values"
+            assert not np.any(np.isnan(self.rho)
+                              ), "Error: rho contains NaN values"
             assert not np.any(np.isnan(self.e)), "Error: e contains NaN values"
             assert not np.any(np.isnan(self.u)), "Error: u contains NaN values"
             assert not np.any(np.isnan(self.w)), "Error: w contains NaN values"
             assert not np.any(np.isnan(self.rho_u)
-                            ), "Error: rho_u contains NaN values"
+                              ), "Error: rho_u contains NaN values"
             assert not np.any(np.isnan(self.rho_w)
-                            ), "Error: rho_w contains NaN values"
+                              ), "Error: rho_w contains NaN values"
 
     def plot_initialise(self):
         """
@@ -364,30 +369,30 @@ class TwoDConvection:
         fig.tight_layout()
         return fig
 
-    def add_temperature_pertubation(self, temperature_peak, x0, y0, spread_x, spread_y):
+    def add_temperature_perturbation(self, temperature_peak, x0, y0, spread_x, spread_y):
         """
         Returns 2Dim Gaussian function grid with specified parameters.
 
         Args:
-            temperature_peak (float): Temperature pertubation peak value.
-            x0 (float): X-position for pertubation peak
-            y0 (float): Y-position for pertubation peak
+            temperature_peak (float): Temperature perturbation peak value.
+            x0 (float): X-position for perturbation peak
+            y0 (float): Y-position for perturbation peak
             spread_x (float): spread in x-direction
             spread_y (float): spread in y-direction
 
         Returns:
-            (numpy.ndarray[float]): Gaussian temperature pertubation
+            (numpy.ndarray[float]): Gaussian temperature perturbation
         """
         x_ = np.linspace(0, 12e6, self.nx)
         y_ = np.linspace(0, 4e6, self.ny)
         y, x = np.meshgrid(y_, x_)
-        self.temperature_pertubation += temperature_peak * \
+        self.temperature_perturbation += temperature_peak * \
             np.exp(- ((x - x0)**2/(2*spread_x**2) + (y-y0)**2/(2*spread_y**2)))
 
 
 def plot_initial():
     """
-    Show initialized grids without temperature pertubations.
+    Show initialized grids without temperature perturbations.
     """
     instance = TwoDConvection()
     instance.initialise()
@@ -424,7 +429,7 @@ def simulate(sim_duration):
 
 def sanity_check():
     """
-    Run simulation for 60s with no pertubations. Benchmark for if code works or not
+    Run simulation for 60s with no perturbations. Benchmark for if code works or not
     is if the .mp4 generated causes too much problems.
     """
     instance = TwoDConvection()
@@ -442,12 +447,12 @@ def sanity_check():
     vis.animate_2D('T', save=True, video_name="sanity_check")
 
 
-def plot_initial_single_pertubation():
+def plot_initial_single_perturbation():
     """
-    show initialized grid with temperature pertubation.
+    show initialized grid with temperature perturbation.
     """
     instance = TwoDConvection()
-    instance.add_temperature_pertubation(
+    instance.add_temperature_perturbation(
         temperature_peak=10000,
         x0=6e6,
         y0=2e6,
@@ -456,7 +461,7 @@ def plot_initial_single_pertubation():
     )
     instance.initialise()
     fig = instance.plot_initialise()
-    fig.savefig("initial_grid_with_pertubation.pdf")
+    fig.savefig("initial_grid_with_perturbation.pdf")
 
 
 def animate_quantity(vis, quantity, sim_duration):
@@ -468,20 +473,17 @@ def animate_quantity(vis, quantity, sim_duration):
         quantity (str): Name of quantity to be simulated.
         sim_duration (float): Duration of simulation.
     """
-    vis.animate_2D(quantity, save=True, video_name=f"{sim_duration}s_{quantity}_with_single_pertubation")
+    vis.animate_2D(quantity, save=True,
+                   video_name=f"{sim_duration}s_{quantity}_with_single_perturbation")
 
 
-def simulate_single_pertubation(sim_duration):
+def simulate_single_perturbation():
     """
-    Run simulation for sim_duration s with single pertubation.
-
-    Args:
-        sim_duration (int): duration for which to run simulation
+    Run simulation for 200s with single perturbation,
+    and save the data.
     """
-    assert isinstance(sim_duration, int), "non-integer sim_duration provided"
-    assert sim_duration > 0, "zero or non-positive sim_duration provided"
     instance = TwoDConvection()
-    instance.add_temperature_pertubation(
+    instance.add_temperature_perturbation(
         temperature_peak=10000,
         x0=6e6,
         y0=2e6,
@@ -490,18 +492,54 @@ def simulate_single_pertubation(sim_duration):
     )
     instance.initialise()
     vis = FVis.FluidVisualiser()
-    vis.save_data(sim_duration, instance.hydro_solver,
+    vis.save_data(200, instance.hydro_solver,
                   rho=instance.rho.T,
                   T=instance.T.T,
                   u=instance.u.T,
                   w=instance.w.T,
                   P=instance.P.T,
                   e=instance.e.T,
-                  sim_fps=5,
-                  folder=f'{sim_duration}s_single_pertubation')
+                  sim_fps=30,
+                  folder=f'single_perturbation')
+
+
+def animate_single_perturbation():
+    """
+    Animate saved data from 200s simulation
+    of single perturbation and save as .mp4 for each variable.
+    """
+    vis = FVis.FluidVisualiser()
     quantities = ["T", "rho", "P", "e"]
+    extent = [0,12,0,4]
+    units = {"Lx":"Mm","Lz":"Mm"}
     for quantity in quantities:
-        animate_quantity(vis, quantity, sim_duration)
+        vis.animate_2D(quantity, save=True, height=8, aspect=1.75,
+                       extent=extent, units=units,
+                       folder='single_perturbation',
+                       video_name=f"{quantity}_single_perturbation")
+
+
+def snapshots_single_perturbation():
+    """
+    Generate snapshots for the 200s simulation
+    of single perturbation, and save as .png
+    """
+    vis = FVis.FluidVisualiser()
+    shots = [0, 100, 200]
+    quantities = ["T", "rho", "P", "e"]
+    extent = [0,12,0,4]
+    units = {"Lx":"Mm","Lz":"Mm"}
+    
+    for quantity in quantities:
+        for shot in shots:
+            vis.animate_2D(quantity, height=8, aspect=1.75,
+                        extent=extent, units=units,
+                        folder='single_perturbation',snapshots=shots)
+            try:
+                os.rename(f"single_perturbation_snapshot_t{shot}.1.png", f"{quantity}_single_pertubation_{shot}.png")
+            except FileNotFoundError:
+                os.rename(f"single_perturbation_snapshot_t{shot}.png", f"{quantity}_single_pertubation_{shot}.png")
+
 
 
 if __name__ == '__main__':
@@ -510,7 +548,7 @@ if __name__ == '__main__':
     """
     # Run your code here
     #plot_initial()
-    sanity_check()
-    simulate_single_pertubation(200)
-    #plot_initial_single_pertubation()
-    #simulate()
+    #sanity_check()
+    #simulate_single_perturbation()
+    #plot_initial_single_perturbation()
+    snapshots_single_perturbation()
