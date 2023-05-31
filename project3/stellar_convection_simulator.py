@@ -424,7 +424,8 @@ def simulate(sim_duration):
 
 def sanity_check():
     """
-    Run simulation for 60s with no pertubations.
+    Run simulation for 60s with no pertubations. Benchmark for if code works or not
+    is if the .mp4 generated causes too much problems.
     """
     instance = TwoDConvection()
     instance.initialise()
@@ -437,11 +438,8 @@ def sanity_check():
                   P=instance.P.T,
                   e=instance.e.T,
                   sim_fps=30,
-                  folder='60s')
-    vis.animate_2D('T', save=True, video_name="60s_T")
-    #vis.animate_2D('rho', save=True, video_name="60s_rho")
-    #vis.animate_2D('e', save=True, video_name="60s_e")
-    #vis.animate_2D('P', save=True, video_name="60s_P")
+                  folder='sanity_check')
+    vis.animate_2D('T', save=True, video_name="sanity_check")
 
 
 def plot_initial_single_pertubation():
@@ -450,7 +448,7 @@ def plot_initial_single_pertubation():
     """
     instance = TwoDConvection()
     instance.add_temperature_pertubation(
-        temperature_peak=5000,
+        temperature_peak=10000,
         x0=6e6,
         y0=2e6,
         spread_x=1e6,
@@ -459,6 +457,7 @@ def plot_initial_single_pertubation():
     instance.initialise()
     fig = instance.plot_initialise()
     fig.savefig("initial_grid_with_pertubation.pdf")
+
 
 def animate_quantity(vis, quantity, sim_duration):
     """
@@ -472,7 +471,6 @@ def animate_quantity(vis, quantity, sim_duration):
     vis.animate_2D(quantity, save=True, video_name=f"{sim_duration}s_{quantity}_with_single_pertubation")
 
 
-
 def simulate_single_pertubation(sim_duration):
     """
     Run simulation for sim_duration s with single pertubation.
@@ -484,11 +482,11 @@ def simulate_single_pertubation(sim_duration):
     assert sim_duration > 0, "zero or non-positive sim_duration provided"
     instance = TwoDConvection()
     instance.add_temperature_pertubation(
-        temperature_peak=5000,
+        temperature_peak=10000,
         x0=6e6,
         y0=2e6,
-        spread_x=3e5,
-        spread_y=3e5
+        spread_x=1e6,
+        spread_y=1e6
     )
     instance.initialise()
     vis = FVis.FluidVisualiser()
@@ -501,13 +499,9 @@ def simulate_single_pertubation(sim_duration):
                   e=instance.e.T,
                   sim_fps=5,
                   folder=f'{sim_duration}s_single_pertubation')
-    """
     quantities = ["T", "rho", "P", "e"]
     for quantity in quantities:
         animate_quantity(vis, quantity, sim_duration)
-    """
-    animate_quantity(vis, 'T', sim_duration)
-
 
 
 if __name__ == '__main__':
@@ -516,7 +510,7 @@ if __name__ == '__main__':
     """
     # Run your code here
     #plot_initial()
-    #sanity_check()
-    simulate_single_pertubation(201)
+    sanity_check()
+    simulate_single_pertubation(200)
     #plot_initial_single_pertubation()
     #simulate()
